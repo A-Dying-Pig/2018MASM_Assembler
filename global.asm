@@ -15,20 +15,19 @@ STACK_rawdata BYTE 100 DUP(?)
 
 
 RelocationCount WORD 0
-RelocationTable RelocationEntry 100 DUP(<>)
+RelocationTable RelocationEntryproto 100 DUP(<>)
 
 LineNumCount WORD 0
-LineNumTable LineNumEntry 200 DUP(<>)
+LineNumTable LineNumEntryproto 200 DUP(<>)
 
 
 SymbolEntryCount WORD 0
-SymbolTable SymbolEntry 100 DUP(<>)
+SymbolTable SymbolEntryproto 100 DUP(<>)
 
 SymbolauxEntryCount WORD 0
-SymbolauxTable SymbolauxEntry 100 DUP(<>)
-
+SymbolauxTable SymbolauxEntryproto 100 DUP(<>)
 
 StringEntryCount WORD 0
-StringTable StringEntry 100 DUP(<>)
+StringTable StringEntryproto 100 DUP(<>)
 
 END

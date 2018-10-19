@@ -43,7 +43,7 @@ EXTERNDEF RelocationTable:RelocationEntryproto
 LineNumEntryproto STRUCT
     l_addr DWORD ?
     l_lnno WORD ?
-LineNumEntry ENDS
+LineNumEntryproto ENDS
 EXTERNDEF LineNumCount:WORD
 EXTERNDEF LineNumTable:LineNumEntryproto
 
@@ -59,19 +59,19 @@ SymbolEntryproto STRUCT
     RawDataSize DWORD ?
     Auxidx WORD ?
 SymbolEntryproto ENDS
-EXTERNDEF SymbolEntryCount
+EXTERNDEF SymbolEntryCount:WORD
 EXTERNDEF SymbolTable:SymbolEntryproto
 
 ;symbol aux
 SymbolauxEntryproto STRUCT
     content BYTE 18 DUP(?)
 SymbolauxEntryproto ENDS
-EXTERNDEF SymbolauxEntryCount
+EXTERNDEF SymbolauxEntryCount:WORD
 EXTERNDEF SymbolauxTable:SymbolauxEntryproto
 
 ;string table
 StringEntryproto STRUCT
-    name BYTE 8 DUP(?)
+    content BYTE 8 DUP(?)
 StringEntryproto ENDS
-EXTERNDEF StringEntryCount
+EXTERNDEF StringEntryCount:WORD
 EXTERNDEF StringTable:StringEntryproto
