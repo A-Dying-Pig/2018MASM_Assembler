@@ -1,1 +1,0 @@
-externdef mword:DWORD
