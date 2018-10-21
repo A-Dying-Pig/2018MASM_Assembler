@@ -24,7 +24,13 @@ LineNumTable LineNumEntryproto 200 DUP(<>)
 
 
 SymbolEntryCount WORD 0
-SymbolTable SymbolEntryproto 100 DUP(<>)
+GlobalVCount WORD 0
+FunctionCount WORD 0
+OtherCount WORD 0
+SectionSymbolTable SymbolEntryproto SectionCount DUP(<>)
+GlobalvSymbolTable SymbolEntryproto GlobalVMaxCount DUP(<>)
+FunctionSymbolTable SymbolEntryproto FunctionMaxCount DUP(<>)
+OtherSymbolTable SymbolEntryproto OtherMaxCount DUP(<>)
 
 SymbolauxEntryCount WORD 0
 SymbolauxTable SymbolauxEntryproto 100 DUP(<>)

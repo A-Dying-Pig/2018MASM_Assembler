@@ -1,4 +1,10 @@
 SectionCount EQU 4
+GlobalVMaxCount EQU 20
+FunctionMaxCount EQU 20
+OtherMaxCount EQU 2
+EXTERNDEF GlobalVCount:WORD
+EXTERNDEF FunctionCount:WORD
+EXTERNDEF OtherCount:WORD
 ;fileheader
 FileHeaderproto STRUCT
     f_magic WORD ?
@@ -61,7 +67,10 @@ SymbolEntryproto STRUCT
     Auxidx WORD ?
 SymbolEntryproto ENDS
 EXTERNDEF SymbolEntryCount:WORD
-EXTERNDEF SymbolTable:SymbolEntryproto
+EXTERNDEF SectionSymbolTable:SymbolEntryproto
+EXTERNDEF GlobalvSymbolTable:SymbolEntryproto
+EXTERNDEF FunctionSymbolTable:SymbolEntryproto
+EXTERNDEF OtherSymbolTable:SymbolEntryproto
 
 ;symbol aux
 SymbolauxEntryproto STRUCT
@@ -69,6 +78,7 @@ SymbolauxEntryproto STRUCT
 SymbolauxEntryproto ENDS
 EXTERNDEF SymbolauxEntryCount:WORD
 EXTERNDEF SymbolauxTable:SymbolauxEntryproto
+
 
 ;string table
 StringEntryproto STRUCT
