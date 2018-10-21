@@ -93,6 +93,7 @@ FunctionInfoproto STRUCT
 	f_bf WORD ?
 	f_lf DWORD ?
 	f_ef WORD ?
-FunctionInfoproto STRUCT
+FunctionInfoproto ENDS
 EXTERNDEF FunctionInfoCount:WORD
 EXTERNDEF FunctionInfoTable:FunctionInfoproto
+
