@@ -89,13 +89,12 @@ EXTERNDEF StringTable:StringEntryproto
 
 ;per instruction
 Instructionproto STRUCT
-    operation_type DOWRD
-    operation_len  DWORD
-    operation_str  DWORD
-    operand1_len   DWORD
-    operand1_type  DWORD
-    operand1_str   BYTE 16 DUP (?)
-    operand2_len   DWORD
-    operand2_type  DWORD
-    operand2_str   BYTE 16 DUP (?)
+    operation_type DWORD ?
+    operation_len  DWORD ?  
+    operation_str  BYTE 4 DUP (?)
+    operand1_type  DWORD ?
+    operand1_name  BYTE 8 DUP (?)
+    operand2_type  DWORD ?
+    operand2_name   BYTE 8 DUP (?)
 Instructionproto ENDS
+EXTERNDEF Instruction:Instructionproto
