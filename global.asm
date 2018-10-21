@@ -37,8 +37,9 @@ SymbolauxTable SymbolauxEntryproto 100 DUP(<>)
 
 
 StringEntryCount WORD 0
-StringTable StringEntryproto 100 DUP(<>)
+StringTable BYTE 200 DUP(?)
 
 Instruction Instructionproto <>
 
-END
+FunctionInfoCount WORD 0
+FunctionInfoTable FunctionInfoproto FunctionMaxCount DUP(<>)

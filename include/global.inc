@@ -81,10 +81,8 @@ EXTERNDEF SymbolauxTable:SymbolauxEntryproto
 
 
 ;string table
-StringEntryproto STRUCT
-    content BYTE 8 DUP(?)
-StringEntryproto ENDS
 EXTERNDEF StringEntryCount:WORD
+
 EXTERNDEF StringTable:StringEntryproto
 
 ;per instruction
@@ -98,3 +96,18 @@ Instructionproto STRUCT
     operand2_name   BYTE 8 DUP (?)
 Instructionproto ENDS
 EXTERNDEF Instruction:Instructionproto
+
+EXTERNDEF StringTable:BYTE
+
+;Function
+FunctionInfoproto STRUCT
+	f_name BYTE 8 DUP(?)
+	f_offset DWORD ?
+	f_size DWORD ?
+	f_lnof DWORD ?
+	f_bf WORD ?
+	f_lf DWORD ?
+	f_ef WORD ?
+FunctionInfoproto STRUCT
+EXTERNDEF FunctionInfoCount:WORD
+EXTERNDEF FunctionInfoTable:FunctionInfoproto
