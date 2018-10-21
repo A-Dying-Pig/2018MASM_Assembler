@@ -3,9 +3,11 @@
 option casemap : none
 include global.inc
 .data
-FileHeader FileHeaderproto <>
 
-SectionHeader SectionHeaderproto 4 DUP(<>)
+FileHeader FileHeaderproto <>
+FileOffset DWORD 0
+
+SectionHeader SectionHeaderproto SectionCount DUP(<>)
 
 ;section raw-data,fixed size
 text_rawdata BYTE 1000 DUP(?)
@@ -26,6 +28,7 @@ SymbolTable SymbolEntryproto 100 DUP(<>)
 
 SymbolauxEntryCount WORD 0
 SymbolauxTable SymbolauxEntryproto 100 DUP(<>)
+
 
 StringEntryCount WORD 0
 StringTable StringEntryproto 100 DUP(<>)

@@ -1,7 +1,8 @@
+SectionCount EQU 4
 ;fileheader
 FileHeaderproto STRUCT
     f_magic WORD ?
-    f_nscns WORD 4;text,data,STACK,drectve
+    f_nscns WORD SectionCount;text,data,STACK,drectve
     f_timdat DWORD ?
     f_symptr DWORD ?
     f_nsyms DWORD ?
