@@ -76,3 +76,16 @@ StringEntryproto STRUCT
 StringEntryproto ENDS
 EXTERNDEF StringEntryCount:WORD
 EXTERNDEF StringTable:StringEntryproto
+
+;per instruction
+Instructionproto STRUCT
+    operation_type DOWRD
+    operation_len  DWORD
+    operation_str  DWORD
+    operand1_len   DWORD
+    operand1_type  DWORD
+    operand1_str   BYTE 16 DUP (?)
+    operand2_len   DWORD
+    operand2_type  DWORD
+    operand2_str   BYTE 16 DUP (?)
+Instructionproto ENDS

@@ -33,4 +33,6 @@ SymbolauxTable SymbolauxEntryproto 100 DUP(<>)
 StringEntryCount WORD 0
 StringTable StringEntryproto 100 DUP(<>)
 
+Instruction Instructionproto
+
 END
