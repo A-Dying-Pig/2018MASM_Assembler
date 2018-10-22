@@ -24,7 +24,7 @@ LineNumTable LineNumEntryproto 200 DUP(<>)
 
 
 SymbolEntryCount WORD 0
-GlobalVCount WORD 0
+GlobalVCount DWORD 0
 FunctionCount WORD 0
 OtherCount WORD 0
 SectionSymbolTable SymbolEntryproto SectionCount DUP(<>)

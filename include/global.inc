@@ -2,7 +2,7 @@ SectionCount EQU 4
 GlobalVMaxCount EQU 20
 FunctionMaxCount EQU 20
 OtherMaxCount EQU 2
-EXTERNDEF GlobalVCount:WORD
+EXTERNDEF GlobalVCount:DWORD
 EXTERNDEF FunctionCount:WORD
 EXTERNDEF OtherCount:WORD
 ;fileheader
@@ -56,9 +56,9 @@ EXTERNDEF LineNumTable:LineNumEntryproto
 
 ;symbol table
 SymbolEntryproto STRUCT
-    n_name BYTE 8 DUP(?)
+    n_name BYTE 8 DUP(0)
     n_value DWORD ?
-    n_scnum WORD ?
+    n_scnum WORD 2
     n_type WORD ?
     n_sclass BYTE ?
     n_numaux BYTE ?
