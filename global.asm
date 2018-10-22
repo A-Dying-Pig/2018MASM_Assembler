@@ -32,7 +32,8 @@ SectionSymbolTable SymbolEntryproto SectionCount DUP(<>)
 GlobalvSymbolTable SymbolEntryproto GlobalVMaxCount DUP(<>)
 FunctionSymbolTable SymbolEntryproto FunctionMaxCount DUP(<>)
 OtherSymbolTable SymbolEntryproto OtherMaxCount DUP(<>)
-
+CalledFunctionSymbolTable SymbolEntryproto CalledFunctionMazCount DUP(<>)
+CalledFunctionSymbolEntryCount DWORD 0
 SymbolauxEntryCount DWORD 0
 SymbolauxTable SymbolauxEntryproto 100 DUP(<>)
 

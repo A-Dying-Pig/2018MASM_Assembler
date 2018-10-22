@@ -11,6 +11,7 @@ includelib masm32.lib
 	efname BYTE ".ef",0
 	filename BYTE ".file",0
 	atemp DWORD ?
+
 .code
 ;;-------------------------------
 ;; transform the structure to coff
@@ -19,28 +20,38 @@ includelib masm32.lib
 
 ;--------------------------------
 ; finish the FileHeader structure
+; Note:Called after symbol table
 ;--------------------------------
-FileHeaderFini PROC
+FileHeaderFini PROC USES eax ebx ecx edx esi edi
     mov FileHeader.f_magic,014Ch
     mov FileHeader.f_nscns,SectionCount
     ;TODO
     ;FileHeader.f_timdat = 
     ;FileHeader.f_symptr = 
-    ;FileHeader.f_nsyms = 
+	mov ebx,0
+	add ebx,1;file
+	add ebx,SymbolauxEntryCount
+	add ebx,1;comp
+	add ebx,SectionCount;section
+	add ebx,SectionAuxSymbolTableCount
+	add ebx,CalledFunctionSymbolEntryCount
+	add ebx,GlobalVCount
+	mov eax,FunctionInfoCount
+	mov ecx,7
+	mul ecx
+	add ebx,eax
+
+    mov FileHeader.f_nsyms,ebx
     mov FileHeader.f_opthdr,0
     mov FileHeader.f_flags,0
+	ret
 FileHeaderFini ENDP
-
-
-
-
-
 ;--------------------------------
 ; finish section header structure and symbol table of sections
 ; Needed:
 ;	SectionHeader:s_name,s_size,s_nreloc,s_nlnno
 ; Remain:
-;	RawDataptr,
+;	no
 ;--------------------------------
 SectionSymbolFini PROC USES eax ebx ecx edx esi edi
     mov ecx,SectionCount
@@ -88,6 +99,21 @@ sectionsymbol:
 	pop ecx
 	dec ecx
 	jne sectionsymbol
+
+	;change ptr
+	mov eax,TYPE SectionSymbolTable
+	mov ecx,0
+	lea edx,text_rawdata
+	mov SectionSymbolTable[ecx].RawDataptr,edx
+	add ecx,eax
+	lea edx,data_rawdata
+	mov SectionSymbolTable[ecx].RawDataptr,edx
+	add ecx,eax
+	lea edx,STACK_rawdata
+	mov SectionSymbolTable[ecx].RawDataptr,edx
+	add ecx,eax
+	lea edx,drectve_rawdata
+	mov SectionSymbolTable[ecx].RawDataptr,edx
 	ret
 SectionSymbolFini ENDP
 
@@ -124,11 +150,19 @@ GlobalvSymbolTableFini ENDP
 ; Needed:
 ;	FunctionInfo completed
 ; Remain:
-;	Function Definition Aux:PointerToLineNumber,PointerToNextFunction
-;	bf Aux:PointerToNextFunction
+;	Function Definition Aux:PointerToLineNumber(abandoned)
 ;----------------------------------------
 FunctionSymbolTableFini PROC USES eax ebx ecx edx esi edi
 	mov ecx, FunctionInfoCount
+	mov edx,0
+	add edx,1;file
+	add edx,SymbolauxEntryCount
+	add edx,1;comp
+	add edx,SectionCount;section
+	add edx,SectionAuxSymbolTableCount
+	add edx,CalledFunctionSymbolEntryCount
+	add edx,GlobalVCount
+	inc edx
 functionsymboltable:
 	push ecx
 	neg ecx
@@ -137,7 +171,6 @@ functionsymboltable:
 	mov ecx,eax
 	mov ebx,4
 	mul ebx
-	
 	;function def
 	lea esi,FunctionInfoTable[ecx].f_name
 	lea edi,FunctionSymbolTable[eax].n_name
@@ -159,6 +192,7 @@ functionsymboltable:
 	mov eax,FunctionAuxSymbolTableCount
 	mov ebx,FunctionInfoTable[ecx].f_size
 	mov FunctionAuxSymbolTable[eax].totalSize,ebx
+	mov FunctionAuxSymbolTable[eax].pointerToNextFunction,edx
 	inc FunctionAuxSymbolTableCount
 	pop eax
 	;bf
@@ -180,6 +214,7 @@ functionsymboltable:
 	mov eax,FunctionbfefAuxSymbolTableCount
 	mov bx,FunctionInfoTable[ecx].f_bf
 	mov FunctionbfefAuxSymbolTable[eax].linenumber,bx
+	mov FunctionbfefAuxSymbolTable[eax].pointerToNextFunction,edx
 	inc FunctionbfefAuxSymbolTableCount
 	pop eax
 	;lf
@@ -224,6 +259,11 @@ functionsymboltable:
 	ret
 FunctionSymbolTableFini ENDP
 
+;---------------------------------------------
+; Finish file symbol table
+; Remain:
+;	no
+;---------------------------------------------
 FileSymbolTableFini PROC USES eax ebx ecx edx esi edi
 	;gen file define
 	lea esi,filename
@@ -326,4 +366,29 @@ idxTransform PROC FAR C USES ebx ecx edx esi edi,idx:DWORD,protosize:DWORD
 	mul ebx
 	ret
 idxTransform ENDP
+
+;------------------------------------
+; Finish called function symbol table
+; Needed:
+;	n_name,
+;------------------------------------
+CalledFunctionSymbolTableFini PROC
+	mov ecx,CalledFunctionSymbolEntryCount
+calledfunctionsymbol:
+	push ecx
+	invoke idxTransform,ecx,TYPE SymbolEntryproto
+	mov ecx,eax
+	mov CalledFunctionSymbolTable[ecx].n_type,20h
+	mov CalledFunctionSymbolTable[ecx].n_sclass,2h
+
+	inc CalledFunctionSymbolEntryCount
+	pop ecx
+	dec ecx
+	jne calledfunctionsymbol
+	ret
+CalledFunctionSymbolTableFini ENDP
+
+RelocationTableFini PROC USES eax ebx ecx edx esi edi
+
+RelocationTableFini ENDP
 END
