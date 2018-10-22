@@ -7,28 +7,28 @@ EXTERNDEF FunctionCount:DWORD
 EXTERNDEF OtherCount:DWORD
 ;fileheader
 FileHeaderproto STRUCT
-    f_magic WORD ?
+    f_magic WORD 0
     f_nscns WORD SectionCount;text,data,STACK,drectve
-    f_timdat DWORD ?
-    f_symptr DWORD ?
-    f_nsyms DWORD ?
+    f_timdat DWORD 0
+    f_symptr DWORD 0
+    f_nsyms DWORD 0
     f_opthdr DWORD 0
-    f_flags WORD ?
+    f_flags WORD 0
 FileHeaderproto ENDS
 EXTERNDEF FileHeader:FileHeaderproto
 
 ;section header
 SectionHeaderproto STRUCT
-    s_name BYTE 8 DUP(?)
-    s_paddr DWORD ?
-    s_vaddr DWORD ?
-    s_size DWORD ?
-    s_scnptr DWORD ?
-    s_relptr DWORD ?
-    s_lnnoptr DWORD ?
-    s_nreloc WORD ?
-    s_nlnno WORD ?
-    s_flags DWORD ?
+    s_name BYTE 8 DUP(0)
+    s_paddr DWORD 0
+    s_vaddr DWORD 0
+    s_size DWORD 0
+    s_scnptr DWORD 0
+    s_relptr DWORD 0
+    s_lnnoptr DWORD 0
+    s_nreloc WORD 0
+    s_nlnno WORD 0
+    s_flags DWORD 0
 SectionHeaderproto ENDS
 EXTERNDEF SectionHeader:SectionHeaderproto
 
@@ -56,17 +56,18 @@ EXTERNDEF LineNumTable:LineNumEntryproto
 
 ;symbol table
 SymbolEntryproto STRUCT
-    n_name BYTE 8 DUP(?)
-    n_value DWORD ?
-    n_scnum WORD ?
-    n_type WORD ?
-    n_sclass BYTE ?
-    n_numaux BYTE ?
+    n_name BYTE 8 DUP(0)
+    n_value DWORD 0
+    n_scnum WORD 0
+    n_type WORD 0
+    n_sclass BYTE 0
+    n_numaux BYTE 0
     RawDataptr DWORD ?
     RawDataSize DWORD ?
     Auxidx WORD ?
 SymbolEntryproto ENDS
 EXTERNDEF SymbolEntryCount:DWORD
+EXTERNDEF FileSymbolTable:SymbolEntryproto
 EXTERNDEF SectionSymbolTable:SymbolEntryproto
 EXTERNDEF GlobalvSymbolTable:SymbolEntryproto
 EXTERNDEF FunctionSymbolTable:SymbolEntryproto
@@ -133,3 +134,5 @@ SectionAuxSymbolTableproto ENDS
 SectionAuxSymbolTableMaxCount EQU 4
 EXTERNDEF SectionAuxSymbolTableCount:DWORD
 EXTERNDEF SectionAuxSymbolTable:SectionAuxSymbolTableproto
+EXTERNDEF FilePath:BYTE
+EXTERNDEF COMPIDSymbolTable:BYTE

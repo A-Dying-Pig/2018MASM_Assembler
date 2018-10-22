@@ -27,6 +27,7 @@ SymbolEntryCount DWORD 0
 GlobalVCount DWORD 0
 FunctionCount DWORD 0
 OtherCount DWORD 0
+FileSymbolTable SymbolEntryproto <>
 SectionSymbolTable SymbolEntryproto SectionCount DUP(<>)
 GlobalvSymbolTable SymbolEntryproto GlobalVMaxCount DUP(<>)
 FunctionSymbolTable SymbolEntryproto FunctionMaxCount DUP(<>)
@@ -50,4 +51,7 @@ FunctionbfefAuxSymbolTable FunctionbfefAuxSymbolTableproto MaxFunctionbfefAuxSym
 
 SectionAuxSymbolTableCount DWORD 0
 SectionAuxSymbolTable SectionAuxSymbolTableproto SectionAuxSymbolTableMaxCount DUP(<>)
+
+FilePath BYTE 255 DUP(0)
+COMPIDSymbolTable BYTE 40h,63h,6fh,6dh,70h,2eh,69h,64h,0fch,20h,12h,00h,0ffh,0ffh,00h,00h,03h,00h
 END

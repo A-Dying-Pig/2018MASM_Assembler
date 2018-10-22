@@ -3,14 +3,14 @@
 option casemap : none
 include global.inc
 include coff.inc
-include Irvine32.inc
-includelib "g:\masm32\lib\Irvine32.lib"
-includelib "g:\masm32\lib\kernel32.lib"
-includelib "g:\masm32\lib\user32.lib"
+include masm32.inc
+includelib masm32.lib
 .data
 	bfname BYTE ".bf",0
 	lfname BYTE ".lf",0
 	efname BYTE ".ef",0
+	filename BYTE ".file",0
+	atemp DWORD ?
 .code
 ;;-------------------------------
 ;; transform the structure to coff
@@ -47,10 +47,15 @@ SectionSymbolFini PROC USES eax ebx ecx edx esi edi
 sectionsymbol:
 	push ecx
 	neg ecx
-	add ecx,4
+	add ecx,SectionCount
+	invoke idxTransform,ecx,SIZEOF SectionSymbolTable
+	mov edx,eax
+	invoke idxTransform,ecx,SIZEOF SectionHeaderproto
+	mov ecx,edx
+	mov edx,eax
 	;n_name
 	cld
-	lea esi,SectionHeader[ecx].s_name
+	lea esi,SectionHeader[edx].s_name
 	lea edi,SectionSymbolTable[ecx].n_name
 	mov ecx,8
 	rep movsb
@@ -66,11 +71,11 @@ sectionsymbol:
 	mov SectionSymbolTable[ecx].n_sclass,3
 	;aux
 	mov eax,SectionAuxSymbolTableCount
-	mov ebx,SectionHeader[ecx].s_size
+	mov ebx,SectionHeader[edx].s_size
 	mov SectionAuxSymbolTable[eax].seclength,ebx
-	mov bx,SectionHeader[ecx].s_nreloc
+	mov bx,SectionHeader[edx].s_nreloc
 	mov SectionAuxSymbolTable[eax].numberOfRelocations,bx
-	mov bx,SectionHeader[ecx].s_nlnno
+	mov bx,SectionHeader[edx].s_nlnno
 	mov SectionAuxSymbolTable[eax].numberOfLinenumbers,bx
 
 	;add aux count
@@ -100,7 +105,9 @@ GlobalvSymbolTableFini PROC USES eax ebx ecx edx esi edi
 GlobalvSymbolTablel:
 	push ecx
 	neg ecx
-	add ecx,DWORD PTR GlobalVCount
+	add ecx,GlobalVCount
+	invoke idxTransform,ecx,SIZEOF SymbolEntryproto
+	mov ecx,eax
 	mov GlobalvSymbolTable[ecx].n_scnum,2
 	mov GlobalvSymbolTable[ecx].n_type,0
 	mov GlobalvSymbolTable[ecx].n_sclass,3
@@ -108,6 +115,7 @@ GlobalvSymbolTablel:
 	pop ecx
 	dec ecx
 	jne GlobalvSymbolTablel
+	ret
 GlobalvSymbolTableFini ENDP
 
 
@@ -124,10 +132,12 @@ FunctionSymbolTableFini PROC USES eax ebx ecx edx esi edi
 functionsymboltable:
 	push ecx
 	neg ecx
-	add ecx,DWORD PTR FunctionInfoCount
-	mov eax,ecx
+	add ecx,FunctionInfoCount
+	invoke idxTransform,ecx,SIZEOF FunctionInfoproto
+	mov ecx,eax
 	mov ebx,4
 	mul ebx
+	
 	;function def
 	lea esi,FunctionInfoTable[ecx].f_name
 	lea edi,FunctionSymbolTable[eax].n_name
@@ -145,13 +155,14 @@ functionsymboltable:
 	mov FunctionSymbolTable[eax].n_numaux,1
 	;function aux
 	push eax
+
 	mov eax,FunctionAuxSymbolTableCount
 	mov ebx,FunctionInfoTable[ecx].f_size
 	mov FunctionAuxSymbolTable[eax].totalSize,ebx
 	inc FunctionAuxSymbolTableCount
 	pop eax
 	;bf
-	inc eax
+	add eax,SIZEOF SymbolEntryproto
 	lea esi,bfname
 	lea edi,FunctionSymbolTable[eax].n_name
 	push ecx
@@ -172,7 +183,7 @@ functionsymboltable:
 	inc FunctionbfefAuxSymbolTableCount
 	pop eax
 	;lf
-	inc eax
+	add eax,SIZEOF SymbolEntryproto
 	lea esi,lfname
 	lea edi,FunctionSymbolTable[eax].n_name
 	push ecx
@@ -187,7 +198,7 @@ functionsymboltable:
 	mov FunctionSymbolTable[eax].n_numaux,0
 
 	;ef
-	inc eax
+	add eax,SIZEOF SymbolEntryproto
 	lea esi,efname
 	lea edi,FunctionSymbolTable[eax].n_name
 	push ecx
@@ -210,7 +221,109 @@ functionsymboltable:
 	pop ecx
 	dec ecx
 	jne functionsymboltable
+	ret
 FunctionSymbolTableFini ENDP
 
+FileSymbolTableFini PROC USES eax ebx ecx edx esi edi
+	;gen file define
+	lea esi,filename
+	lea edi,FileSymbolTable.n_name
+	mov ecx,5
+	cld
+	rep movsb
+	mov FileSymbolTable.n_scnum,0fffeh
+	mov FileSymbolTable.n_sclass,67h
+	mov FileSymbolTable.n_numaux,3h
+	;get filepathlen
+	invoke GetStringLength,addr FilePath
+	;get ecx loop
+	mov eax,ebx
+	mov edx,0
+	mov ebx,18
+	div ebx
+	mov ecx,0
+	mov cx,ax
+	mov ebx,SymbolauxEntryCount
+	lea esi,FilePath
+	cmp cx,0
+	je copyfileremainpath
+	push edx
 
+	mov eax,ebx
+	mov edx,SIZEOF SymbolauxEntryproto
+	mul edx
+	mov ebx,eax
+copyfilepath:
+	push ecx
+	lea edi,SymbolauxTable[ebx].content
+	mov ecx,18
+	rep movsb
+	push ecx
+	pop ecx
+	inc SymbolauxEntryCount
+	mov eax,SymbolauxEntryCount
+	mov edx,SIZEOF SymbolauxEntryproto
+	mul edx
+	mov ebx,eax
+	pop ecx
+	dec ecx
+	jne copyfilepath
+
+	pop edx
+copyfileremainpath:
+	;mov ebx,SymbolauxEntryCount
+	mov ecx,0
+	mov cx,dx
+	lea edi,(SymbolauxTable[ebx]).content
+	rep movsb
+	inc SymbolauxEntryCount
+	;
+	mov ecx,SymbolauxEntryCount
+	mov ebx,0
+
+	invoke StdOut,ADDR SymbolauxTable[0].content
+	ret
+FileSymbolTableFini ENDP
+
+;--------------------------------------
+; result stored in ebx
+;--------------------------------------
+GetStringLength PROC FAR C USES eax ecx edx esi edi,mstr:DWORD
+	;invoke StdOut,mstr
+	cld
+	mov edi,mstr
+	mov ecx,255
+	mov al,0
+	repne scasb
+	neg ecx
+	add ecx,254
+	mov ebx,ecx
+	ret
+GetStringLength ENDP
+
+RegPush PROC
+	push eax
+	push ebx
+	push ecx
+	push edx
+	push esi
+	push edi
+RegPush ENDP
+
+RegPop PROC
+	pop edi
+	pop esi
+	pop edx
+	pop ecx
+	pop ebx
+	pop eax
+RegPop ENDP
+
+
+idxTransform PROC FAR C USES ebx ecx edx esi edi,idx:DWORD,protosize:DWORD
+	mov eax,idx
+	mov ebx,protosize
+	mul ebx
+	ret
+idxTransform ENDP
 END
