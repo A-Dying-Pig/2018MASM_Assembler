@@ -2,9 +2,9 @@ SectionCount EQU 4
 GlobalVMaxCount EQU 20
 FunctionMaxCount EQU 20
 OtherMaxCount EQU 2
-EXTERNDEF GlobalVCount:WORD
-EXTERNDEF FunctionCount:WORD
-EXTERNDEF OtherCount:WORD
+EXTERNDEF GlobalVCount:DWORD
+EXTERNDEF FunctionCount:DWORD
+EXTERNDEF OtherCount:DWORD
 ;fileheader
 FileHeaderproto STRUCT
     f_magic WORD ?
@@ -43,7 +43,7 @@ RelocationEntryproto STRUCT
     r_symndx DWORD ?
     r_type WORD ?
 RelocationEntryproto ENDS
-EXTERNDEF RelocationCount:WORD
+EXTERNDEF RelocationCount:DWORD
 EXTERNDEF RelocationTable:RelocationEntryproto
 
 ;linenum table
@@ -51,7 +51,7 @@ LineNumEntryproto STRUCT
     l_addr DWORD ?
     l_lnno WORD ?
 LineNumEntryproto ENDS
-EXTERNDEF LineNumCount:WORD
+EXTERNDEF LineNumCount:DWORD
 EXTERNDEF LineNumTable:LineNumEntryproto
 
 ;symbol table
@@ -66,7 +66,7 @@ SymbolEntryproto STRUCT
     RawDataSize DWORD ?
     Auxidx WORD ?
 SymbolEntryproto ENDS
-EXTERNDEF SymbolEntryCount:WORD
+EXTERNDEF SymbolEntryCount:DWORD
 EXTERNDEF SectionSymbolTable:SymbolEntryproto
 EXTERNDEF GlobalvSymbolTable:SymbolEntryproto
 EXTERNDEF FunctionSymbolTable:SymbolEntryproto
@@ -76,28 +76,29 @@ EXTERNDEF OtherSymbolTable:SymbolEntryproto
 SymbolauxEntryproto STRUCT
     content BYTE 18 DUP(?)
 SymbolauxEntryproto ENDS
-EXTERNDEF SymbolauxEntryCount:WORD
+EXTERNDEF SymbolauxEntryCount:DWORD
 EXTERNDEF SymbolauxTable:SymbolauxEntryproto
 
 
-;string table
-EXTERNDEF StringEntryCount:WORD
 
-EXTERNDEF StringTable:StringEntryproto
+;string table
+EXTERNDEF StringEntryCount:DWORD
+EXTERNDEF StringTable:BYTE
 
 ;per instruction
 Instructionproto STRUCT
     operation_type DWORD ?
-    operation_len  DWORD ?  
+    operation_len  DWORD ?	
     operation_str  BYTE 4 DUP (?)
     operand1_type  DWORD ?
     operand1_name  BYTE 8 DUP (?)
+	operand1_len   DWORD ?
     operand2_type  DWORD ?
     operand2_name   BYTE 8 DUP (?)
+	operand2_len	DWORD ?
 Instructionproto ENDS
 EXTERNDEF Instruction:Instructionproto
-
-EXTERNDEF StringTable:BYTE
+EXTERNDEF InstructionEnd:DWORD
 
 ;Function
 FunctionInfoproto STRUCT
@@ -108,6 +109,10 @@ FunctionInfoproto STRUCT
 	f_bf WORD ?
 	f_lf DWORD ?
 	f_ef WORD ?
-FunctionInfoproto STRUCT
-EXTERNDEF FunctionInfoCount:WORD
+FunctionInfoproto ENDS
+EXTERNDEF FunctionInfoCount:DWORD
 EXTERNDEF FunctionInfoTable:FunctionInfoproto
+
+;current_byte
+EXTERNDEF current_code_bytes:DWORD
+EXTERNDEF line_bytes:DWORD
