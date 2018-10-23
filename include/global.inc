@@ -63,7 +63,7 @@ SymbolEntryproto STRUCT
     n_type WORD 0
     n_sclass BYTE 0
     n_numaux BYTE 0
-    RawDataptr DWORD 
+    RawDataptr DWORD 0
     RawDataSize DWORD 0
 SymbolEntryproto ENDS
 EXTERNDEF SymbolEntryCount:DWORD
