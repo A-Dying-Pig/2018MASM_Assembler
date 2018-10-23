@@ -388,7 +388,40 @@ calledfunctionsymbol:
 	ret
 CalledFunctionSymbolTableFini ENDP
 
+;-------------------------------------
+; change relocation table index
+; Remain:
+;	test
+;-------------------------------------
 RelocationTableFini PROC USES eax ebx ecx edx esi edi
+	;change called function relocation
+	mov edx,0
+	add edx,1;file
+	add edx,SymbolauxEntryCount
+	add edx,1;comp
+	add edx,SectionCount;section
+	add edx,SectionAuxSymbolTableCount
+	add ebx,CalledFunctionSymbolEntryCount
+	mov ecx,RelocationCount
+reloloop:
+	push ecx
+	neg ecx
+	add ecx,RelocationCount
+	invoke idxTransform,ecx,TYPE RelocationEntryproto
+	cmp RelocationTable[eax].r_type,14h
+	je calledfunction
+globalv:
+	add RelocationTable[eax].r_symndx,ebx
+	pop ecx
+	dec ecx
+	jne reloloop
+	ret
+calledfunction:
+	add RelocationTable[eax].r_symndx,edx
+	pop ecx
+	dec ecx
+	jne reloloop
+	ret
 
 RelocationTableFini ENDP
 END
