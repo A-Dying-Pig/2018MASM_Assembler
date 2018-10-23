@@ -11,7 +11,7 @@ includelib masm32.lib
 	efname BYTE ".ef",0
 	filename BYTE ".file",0
 	atemp DWORD ?
-
+	allFileOffset DWORD 0
 .code
 ;;-------------------------------
 ;; transform the structure to coff
