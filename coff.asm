@@ -424,4 +424,71 @@ calledfunction:
 	ret
 
 RelocationTableFini ENDP
+
+;----------------------------------------------
+; Finish all file offset
+; Remain:
+;	test
+;----------------------------------------------
+AllOffsetFini PROC USES eax ebx ecx edx esi edi
+	mov eax,40
+	mov ebx,4
+	mul eax
+	add eax,20
+	mov allFileOffset,eax
+	;section ptr
+	;.text special
+	mov SectionHeader[0].s_paddr,0
+	mov eax,allFileOffset
+	mov SectionHeader[0].s_scnptr,eax
+	mov SectionHeader[0].s_flags,60300020h
+	mov edx,SectionHeader[0].s_size
+	and edx,1
+	jnz oddsize 
+	evensize:
+	mov ebx,SectionHeader[0].s_size
+	add allFileOffset,ebx
+	mov eax,allFileOffset
+	mov SectionHeader[0].s_relptr,eax
+	jmp othersectionheader
+	oddsize:
+	mov ebx,SectionHeader[0].s_size
+	add allFileOffset,ebx
+	inc allFileOffset
+	mov eax,allFileOffset
+	mov SectionHeader[0].s_relptr,eax
+
+	;other section header
+	othersectionheader:
+	mov ecx,SectionCount
+	dec ecx
+	mov ebx,0
+sectionoffsetloop:
+	push ecx
+	neg ecx
+	add ecx,SectionCount
+	invoke idxTransform,ecx,TYPE SectionHeaderproto
+	mov ecx,eax
+	sub ecx,TYPE SectionHeaderproto
+	;s_paddr
+	mov eax,SectionHeader[ecx].s_paddr
+	add eax,SectionHeader[ecx].s_size
+	add ecx,TYPE SectionHeaderproto
+	mov SectionHeader[ecx].s_paddr,eax
+	pop ecx
+	dec ecx
+	jne sectionoffsetloop
+
+	;.data header and .drectve header
+	movzx eax,SectionHeader[0].s_nreloc
+	mov ebx,10
+	mul ebx
+	add eax,SectionHeader[0].s_relptr
+	mov SectionHeader[TYPE SectionHeaderproto].s_scnptr,eax
+	add eax,SectionHeader[TYPE SectionHeaderproto].s_size
+	mov SectionHeader[3*(TYPE SectionHeaderproto)].s_scnptr,eax
+
+	ret
+AllOffsetFini ENDP
+
 END

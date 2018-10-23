@@ -5,7 +5,7 @@ include global.inc
 .data
 
 FileHeader FileHeaderproto <>
-FileOffset DWORD 0
+allFileOffset DWORD 0
 
 SectionHeader SectionHeaderproto SectionCount DUP(<>)
 

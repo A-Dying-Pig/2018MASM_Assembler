@@ -9,3 +9,4 @@ RegPush PROTO
 RegPop PROTO
 idxTransform PROTO FAR C idx:DWORD,protosize:DWORD
 RelocationTableFini PROTO
+AllOffsetFini PROTO

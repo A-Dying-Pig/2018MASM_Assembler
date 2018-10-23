@@ -6,6 +6,7 @@ CalledFunctionMazCount EQU 50
 EXTERNDEF GlobalVCount:DWORD
 EXTERNDEF FunctionCount:DWORD
 EXTERNDEF OtherCount:DWORD
+EXTERNDEF allFileOffset:DWORD
 ;fileheader
 FileHeaderproto STRUCT
     f_magic WORD 0
