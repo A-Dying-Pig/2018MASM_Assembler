@@ -27,7 +27,6 @@ FileHeaderFini PROC USES eax ebx ecx edx esi edi
     mov FileHeader.f_nscns,SectionCount
     ;TODO
     ;FileHeader.f_timdat = 
-    ;FileHeader.f_symptr = 
 	mov ebx,0
 	add ebx,1;file
 	add ebx,SymbolauxEntryCount
@@ -487,7 +486,15 @@ sectionoffsetloop:
 	mov SectionHeader[TYPE SectionHeaderproto].s_scnptr,eax
 	add eax,SectionHeader[TYPE SectionHeaderproto].s_size
 	mov SectionHeader[3*(TYPE SectionHeaderproto)].s_scnptr,eax
-
+	;file symboltable offset
+	mov eax,SectionHeader[3*(TYPE SectionHeaderproto)].s_scnptr
+	add eax,SectionHeader[3*(TYPE SectionHeaderproto)].s_size
+	mov ebx,eax
+	and ebx,1
+	jz filesymboleven
+	inc eax
+	filesymboleven:
+	mov FileHeader.f_symptr,eax
 	ret
 AllOffsetFini ENDP
 
