@@ -89,7 +89,7 @@ EXTERNDEF StringTable:BYTE
 Instructionproto STRUCT
     operation_type DWORD ?
     operation_len  DWORD ?	
-    operation_str  BYTE 4 DUP (?)
+    operation_str  BYTE 8 DUP (?)
     operand1_type  DWORD ?
     operand1_name  BYTE 8 DUP (?)
 	operand1_len   DWORD ?
@@ -116,3 +116,11 @@ EXTERNDEF FunctionInfoTable:FunctionInfoproto
 ;current_byte
 EXTERNDEF current_code_bytes:DWORD
 EXTERNDEF line_bytes:DWORD
+
+;label table
+LabelEntryproto STRUCT
+	label_name BYTE 9 DUP(0)
+	label_offset DWORD ?
+LabelEntryproto ENDS
+EXTERNDEF LabelCount:DWORD
+EXTERNDEF LabelTable:LabelEntryproto

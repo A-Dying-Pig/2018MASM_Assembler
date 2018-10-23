@@ -47,4 +47,9 @@ FunctionInfoTable FunctionInfoproto FunctionMaxCount DUP(<>)
 
 current_code_bytes DWORD 0
 line_bytes DWORD 0
+
+
+LabelCount DWORD 0
+LabelTable LabelEntryproto 100 DUP(<>)
+
 END
