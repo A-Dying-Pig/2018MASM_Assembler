@@ -43,6 +43,7 @@ include global.inc
 ;|                rel16/32              |     111    |
 ;|                Fun PROC              |     1000   |
 ;|                Fun ENDP              |     1001   |
+;|				    ret                 |	  1010   |
 ;|---------------------------------------------------|
 
 ;opcode extension prefix
@@ -57,6 +58,7 @@ include global.inc
 ;|  1  |  OPCODE + REGISTER   |
 ;|  0  |       OPCODE         |
 ;|----------------------------|
+
 
 .data
 ;BUFFER
@@ -86,11 +88,24 @@ ebp_str byte "EBP",0
 esi_str byte "ESI",0
 edi_str byte "EDI",0
 
+;-----JUMP TABLE
+jump_table_entry STRUCT
+	label_name BYTE 8 DUP(?)
+	label_len DWORD ?
+	label_address_len DWORD ?
+	label_address_offset DWORD ?
+	label_EIP DWORD ?
+jump_table_entry ENDS
+jump_table jump_table_entry 100 DUP(<>)
+jump_table_count DWORD 0
+
+
 ;KEY INFORMATION
 text_ptr DWORD offset text_rawdata
 line_code BYTE 30 DUP (?)
 section_name BYTE ".text",0,0,0
 function_start_offset DWORD 0
+function_start_on DWORD 0
 
 ;HANDLERS
 open_table_file_handler DWORD ?
@@ -112,6 +127,8 @@ fun_r32_m32 BYTE "...FUNCTION R32_M32...",0dh,0ah,0
 fun_m32_r32 BYTE "...FUNCTION M32_R32...",0dh,0ah,0
 fun_r32 BYTE "...FUNCTION R32...",0dh,0ah,0
 fun_m32 BYTE "...FUNCTION M32...",0dh,0ah,0
+fun_definition_start BYTE "...FUNCTION PROC...",0dh,0ah,0
+fun_definition_end BYTE "...FUNCTION ENDP...",0dh,0ah,0
 fun_rel32 BYTE "...FUNCTION REL32...",0dh,0ah,0
 integer BYTE "%x ",0
 char BYTE "%c",0dh,0ah,0
@@ -442,6 +459,57 @@ L2:
 	ret
 r32_id ENDP
 
+
+;-------------------------------------------------
+fill_jump_table_entry PROC,
+				label_ptr:DWORD,
+				label_len:DWORD,
+				address_len:DWORD,
+				address_offset:DWORD,
+				EIP_offset:DWORD
+;function:add a jump table entry to the jump table
+;receive:params
+;return:None
+;-------------------------------------------------
+	pushad
+	mov edi,offset jump_table	
+	mov ecx,jump_table_count
+	lea edi,[edi + ecx * 8]
+	lea edi,[edi + ecx * 8]
+	lea edi,[edi + ecx * 8]
+	
+	;LABEL LEN
+	mov ecx,label_len
+	mov dword ptr [edi + 8],ecx
+	lea edx,[edi + 12]
+	push edx
+	;LABEL NAME
+	mov esi,label_ptr
+	mov ecx,label_len
+L_copy_label_name:
+	mov al,byte ptr [esi]
+	mov byte ptr [edi],al
+	inc esi
+	inc edi
+	loop L_copy_label_name
+	;LABEL_ADDRESS_LEN
+	pop edi
+	mov eax,address_len
+	mov dword ptr [edi],eax
+	add edi,4
+	;LABEL_ADDRESS_OFFSET
+	mov eax,address_offset
+	mov dword ptr [edi],eax
+	add edi,4
+	;LABEL EIP
+	mov eax,EIP_offset
+	mov dword ptr [edi],eax
+
+	inc jump_table_count
+	popad
+	ret
+fill_jump_table_entry ENDP
+
 ;------------------------------------------------
 fill_relocation_table PROC,
 				typeid:DWORD,
@@ -503,8 +571,8 @@ L_v_in_position:
 
 L_function:
 	;FUNCTION SYMBOL TABLE
-	mov edi,offset FunctionInfoTable
-	mov ecx,FunctionInfoCount
+	mov edi,offset FunctionSymbolTable
+	mov ecx,FunctionCount
 	cmp ecx,0
 	je L1
 L_f:
@@ -945,7 +1013,7 @@ m32_r32 PROC
 ;return:None
 ;-----------------------------------------------
 	pushad
-	invoke StdOut,addr fun_r32_m32
+	invoke StdOut,addr fun_m32_r32
 	invoke get_opcode,Instruction.operation_len,addr Instruction.operation_str,Instruction.operation_type
 	push eax
 	
@@ -1119,12 +1187,12 @@ L2:
 r32 ENDP
 
 
-;-------------------------------------------------
+;------------------------------------------------
 m32 PROC
 ;function:one operand;m32
 ;receive:Instruction struct
 ;return:None
-;-----------------------------------------------
+;------------------------------------------------
 	pushad
 	invoke StdOut,addr fun_m32
 	invoke get_opcode,Instruction.operation_len,addr Instruction.operation_str,Instruction.operation_type
@@ -1204,6 +1272,179 @@ L2:
 	ret
 m32 ENDP
 
+
+;------------------------------------------------
+rel32  PROC
+;function: one operand:rel32
+;receive:Instruction struct
+;return:None
+;-------------------------------------------------
+	pushad
+	invoke StdOut,addr fun_rel32
+	invoke get_opcode,Instruction.operation_len,addr Instruction.operation_str,Instruction.operation_type
+	push eax
+
+	;VALIDATE 
+	movzx ebx,byte ptr [eax + 1]
+	cmp ebx,0
+	je L0
+
+	;IS VALID
+	mov line_bytes,0
+
+	;OPCODE
+	pop esi
+	movzx ebx,word ptr [esi + 6]
+L_opcode_byte:
+	cmp bh,0
+	jne L_opcode_two_bytes
+	mov esi,offset line_code
+	mov ecx,line_bytes
+	mov byte ptr [esi + ecx],bl
+	add line_bytes,1
+	jmp L_jump
+L_opcode_two_bytes:
+	mov esi,offset line_code
+	mov ecx,line_bytes
+	mov word ptr [esi + ecx],bx
+	add line_bytes,2
+	jmp L_jump
+
+L_jump:
+	;JUDGE JUMP TYPE
+	mov esi,offset Instruction.operation_str
+	mov al,byte ptr [esi]
+	cmp al,"L"
+
+	je L_is_loop
+	;fill jump table -- jmp/call
+	mov esi,offset Instruction.operand1_name
+	mov ecx,Instruction.operand1_len
+	mov eax, current_code_bytes
+	add eax,line_bytes
+	mov ebx,eax
+	add ebx,4
+	invoke fill_jump_table_entry,esi,ecx,4,eax,ebx
+	mov esi,offset line_code
+	mov ecx,line_bytes
+	mov dword ptr [esi + ecx],0
+	add line_bytes,4
+	jmp L2
+L_is_loop:
+	;fill jump table -- loops
+	mov esi,offset Instruction.operand1_name
+	mov ecx,Instruction.operand1_len
+	mov eax, current_code_bytes
+	add eax,line_bytes
+	mov ebx,eax
+	add ebx,1
+	invoke fill_jump_table_entry,esi,ecx,1,eax,ebx
+	mov esi,offset line_code
+	mov ecx,line_bytes
+	mov byte ptr [esi + ecx],0
+	add line_bytes,1
+	jmp L2
+
+L0:
+	pop eax
+L1:
+	invoke StdOut,addr error
+L2:
+	call line_code_to_raw_data
+	popad
+	ret
+rel32 ENDP
+
+;-----------------------------------------------
+update_jump_bytes PROC
+;function:update jump bytes
+;receive:jump_table,label_table
+;return:None
+;-----------------------------------------------
+	pushad
+
+	mov ecx,jump_table_count
+	cmp ecx,0
+	je L2
+
+	mov esi,offset jump_table
+L_jump_table_entry:
+	push ecx
+	push esi
+	mov edi,offset LabelTable
+
+	mov ecx,LabelCount
+	cmp ecx,0
+	je L1
+L_label_table_entry:
+	push ecx
+	mov ecx,dword ptr [esi + 8]
+	mov edx,9
+	sub edx,ecx
+L_cmp_str:
+	mov al,byte ptr [esi]
+	mov bl,byte ptr [edi]
+	inc esi
+	inc edi
+	cmp al,bl
+	loope L_cmp_str
+	;PAIRED
+	je L_paired
+	;CURRENT LABEL ENTRY NOT PAIR
+	add edi,edx
+	add edi,ecx
+	add edi,4
+	pop ecx
+	pop esi
+	push esi
+	loop L_label_table_entry
+	;NOT PAIRED
+	jmp L_not_in_label_table
+L_jump_table_next:
+	pop esi
+	add esi,24
+	pop ecx
+	loop L_jump_table_entry
+	jmp L2
+
+L_paired:
+	add edi,edx
+	mov edx,dword ptr [edi]
+	pop ecx
+	pop esi
+	push esi
+	mov eax, dword ptr [esi + 12]
+	cmp eax,4
+	jne L_one_byte
+	mov eax,dword ptr [esi + 16]
+	mov ebx,dword ptr [esi + 20]
+	sub edx,ebx
+	mov edi,offset text_rawdata
+	mov dword ptr [edi + eax],edx
+	jmp L_jump_table_next
+L_one_byte:
+	mov eax,dword ptr [esi + 16]
+	mov ebx,dword ptr [esi + 20]
+	sub edx,ebx
+	cmp edx,-128
+	jl L1
+	cmp edx,127
+	jg L1
+	mov edi,offset text_rawdata
+	mov byte ptr [edi + eax],dl
+	jmp L_jump_table_next
+L_not_in_label_table:
+	pop esi
+	push esi
+	invoke fill_relocation_table,1,esi,dword ptr [esi + 16]
+	jmp L_jump_table_next
+L1:
+	invoke StdOut,addr error
+L2:
+	popad
+	ret
+update_jump_bytes ENDP
+
 ;-----------------------------------------------
 search_function_table PROC,
 				name_ptr:DWORD
@@ -1213,6 +1454,8 @@ search_function_table PROC,
 ;-----------------------------------------------
 	mov esi,offset FunctionInfoTable
 	mov ecx,FunctionInfoCount
+	cmp ecx,0
+	je L1
 
 L_function_info_entry:
 	push ecx
@@ -1251,6 +1494,11 @@ function_definition_start PROC
 ;return;None
 ;-----------------------------------------------
 	pushad
+	mov line_bytes,0
+	cmp function_start_on,1
+	je L1
+	mov function_start_on,1
+	invoke StdOut,addr fun_definition_start
 	invoke search_function_table,addr Instruction.operation_str
 	mov edx,current_code_bytes
 	mov dword ptr [eax + 8],edx
@@ -1270,6 +1518,11 @@ function_definition_end PROC
 ;return:None
 ;---------------------------------------------------
 	pushad
+	cmp function_start_on,1
+	jne L1
+	mov function_start_on,0
+	mov line_bytes,0
+	invoke StdOut,addr fun_definition_end
 	invoke search_function_table,addr Instruction.operation_str
 	mov edx,current_code_bytes
 	mov ebx,function_start_offset
@@ -1283,6 +1536,50 @@ L2:
 	ret
 function_definition_end ENDP
 
+;-----------------------------------------------
+function_return PROC
+;function:Translate 'ret'
+;receive:None
+;return:None
+;-----------------------------------------------
+	pushad
+
+	mov line_bytes,1
+	mov edi,offset line_code
+	mov ebx,0C3h
+	mov byte ptr [edi],bl
+	call line_code_to_raw_data
+
+	popad
+	ret
+function_return ENDP
+
+;------------------------------------------------
+show_relocation_table PROC
+;function:show relocation entry
+;receive:None
+;return:None
+;------------------------------------------------
+L_relocation:
+	;SHOW RELOCATION TABLE
+	invoke StdOut,addr relocation_table_is
+	mov ecx,RelocationCount
+	cmp ecx,0
+	je L2
+	mov edi,offset RelocationTable
+L_relocation_entry:
+	push ecx
+	push edi
+	invoke crt_printf,addr a_relocation_entry,dword ptr [edi],dword ptr [edi + 4],word ptr [edi + 8]
+	pop edi
+	add edi,10
+	pop ecx
+	loop L_relocation_entry
+L2:
+	ret
+show_relocation_table ENDP
+
+
 ;-------------------------------------------------
 show_line_code PROC
 ;function: display machine code of the line 
@@ -1293,6 +1590,8 @@ show_line_code PROC
 	mov edi,offset text_rawdata
 	mov ebx,current_code_bytes
 	mov ecx,line_bytes
+	cmp ecx,0
+	je L_re
 	sub ebx,ecx
 L_show:
 	movzx edx,byte ptr [edi + ebx]
@@ -1303,23 +1602,13 @@ L_show:
 	loop L_show
 	invoke crt_printf,addr char,13
 
+L_re:
 	;SHOW RELOCATION TABLE
-	invoke StdOut,addr relocation_table_is
-	mov ecx,RelocationCount
-	cmp ecx,0
-	je L2
-	mov edi,offset RelocationTable
-L_relocation:
-	push ecx
-	push edi
-	invoke crt_printf,addr a_relocation_entry,dword ptr [edi],dword ptr [edi + 4],word ptr [edi + 8]
-	pop edi
-	add edi,10
-	pop ecx
-	loop L_relocation
+	call show_relocation_table
 L2:
 	ret
 show_line_code ENDP
+
 
 ;-------------------------------------------------
 code_translation PROC
@@ -1349,6 +1638,8 @@ code_translation PROC
 	je L8
 	cmp Instruction.operation_type,9
 	je L9
+	cmp Instruction.operation_type,10
+	je L10
 	jmp Lerror
 L0:
 	call r32_r32
@@ -1372,13 +1663,16 @@ L6:
 	call m32
 	jmp Lret
 L7:
-
+	call rel32
 	jmp Lret
 L8:
 	call function_definition_start
 	jmp Lret
 L9:
 	call function_definition_end
+	jmp Lret
+L10:
+	call function_return
 	jmp Lret
 Lerror:
 	invoke StdOut,addr error
@@ -1393,6 +1687,233 @@ code_translation ENDP
 main PROC
 
 	call load_tables
+
+	;function info entry added
+	add FunctionInfoCount,1
+	mov edi,offset FunctionInfoTable
+	mov byte ptr [edi],"f"
+	inc edi
+	mov byte ptr [edi],"u"
+	inc edi
+	mov byte ptr [edi],"n"
+	inc edi
+	mov byte ptr [edi],"1"
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	add FunctionInfoCount,1
+	add edi,20
+	mov byte ptr [edi],"f"
+	inc edi
+	mov byte ptr [edi],"u"
+	inc edi
+	mov byte ptr [edi],"n"
+	inc edi
+	mov byte ptr [edi],"2"
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+
+	;function symbol table added
+	add FunctionCount,1
+	mov edi,offset FunctionSymbolTable
+	mov byte ptr [edi],"f"
+	inc edi
+	mov byte ptr [edi],"u"
+	inc edi
+	mov byte ptr [edi],"n"
+	inc edi
+	mov byte ptr [edi],"3"
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	add FunctionCount,1
+	add edi,20
+	mov byte ptr [edi],"f"
+	inc edi
+	mov byte ptr [edi],"u"
+	inc edi
+	mov byte ptr [edi],"n"
+	inc edi
+	mov byte ptr [edi],"4"
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+
+	;add Label Table entry
+	mov edi,offset LabelTable
+	add LabelCount,1
+	mov byte ptr [edi],"L"
+	inc edi
+	mov byte ptr [edi],"1"
+	inc edi
+	mov byte ptr [edi],"0"
+	inc edi
+	mov byte ptr [edi],"0"
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	add edi,1
+	mov dword ptr [edi],0ah
+	add edi,4
+	add LabelCount,1
+	mov byte ptr [edi],"f"
+	inc edi
+	mov byte ptr [edi],"u"
+	inc edi
+	mov byte ptr [edi],"n"
+	inc edi
+	mov byte ptr [edi],"1"
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	add edi,1
+	mov dword ptr [edi],1
+	add edi,4
+	add LabelCount,1
+	mov byte ptr [edi],"f"
+	inc edi
+	mov byte ptr [edi],"u"
+	inc edi
+	mov byte ptr [edi],"n"
+	inc edi
+	mov byte ptr [edi],"2"
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	add edi,1
+	mov dword ptr [edi],10h
+	add edi,4
+
+	;test rel32
+	mov Instruction.operation_type,7
+	mov Instruction.operation_len,3
+	mov edi,offset Instruction.operation_str
+	mov byte ptr [edi],"J"
+	inc edi
+	mov byte ptr [edi],"M"
+	inc edi
+	mov byte ptr [edi],"P"
+	inc edi
+	mov byte ptr [edi],0
+	mov Instruction.operand1_len,2
+	mov edi,offset Instruction.operand1_name
+	mov byte ptr [edi],"L"
+	inc edi
+	mov byte ptr [edi],"1"
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	call code_translation
+
+	mov Instruction.operation_type,7
+	mov Instruction.operation_len,4
+	mov edi,offset Instruction.operation_str
+	mov byte ptr [edi],"L"
+	inc edi
+	mov byte ptr [edi],"O"
+	inc edi
+	mov byte ptr [edi],"O"
+	inc edi
+	mov byte ptr [edi],"P"
+	mov Instruction.operand1_len,4
+	mov edi,offset Instruction.operand1_name
+	mov byte ptr [edi],"f"
+	inc edi
+	mov byte ptr [edi],"u"
+	inc edi
+	mov byte ptr [edi],"n"
+	inc edi
+	mov byte ptr [edi],"2"
+	inc edi
+	call code_translation
+
+	mov Instruction.operation_type,7
+	mov Instruction.operation_len,4
+	mov edi,offset Instruction.operation_str
+	mov byte ptr [edi],"C"
+	inc edi
+	mov byte ptr [edi],"A"
+	inc edi
+	mov byte ptr [edi],"L"
+	inc edi
+	mov byte ptr [edi],"L"
+	mov Instruction.operand1_len,4
+	mov edi,offset Instruction.operand1_name
+	mov byte ptr [edi],"f"
+	inc edi
+	mov byte ptr [edi],"u"
+	inc edi
+	mov byte ptr [edi],"n"
+	inc edi
+	mov byte ptr [edi],"1"
+	inc edi
+	call code_translation
+
+		mov Instruction.operation_type,7
+	mov Instruction.operation_len,4
+	mov edi,offset Instruction.operation_str
+	mov byte ptr [edi],"C"
+	inc edi
+	mov byte ptr [edi],"A"
+	inc edi
+	mov byte ptr [edi],"L"
+	inc edi
+	mov byte ptr [edi],"L"
+	mov Instruction.operand1_len,4
+	mov edi,offset Instruction.operand1_name
+	mov byte ptr [edi],"f"
+	inc edi
+	mov byte ptr [edi],"u"
+	inc edi
+	mov byte ptr [edi],"n"
+	inc edi
+	mov byte ptr [edi],"3"
+	inc edi
+	call code_translation
+
 
 	;test r32 - r32
 	mov Instruction.operation_type,0
@@ -1421,6 +1942,26 @@ main PROC
 	mov byte ptr [edi],"D"
 	inc edi
 	mov byte ptr [edi],"X"
+	inc edi
+	mov byte ptr [edi],0
+	call code_translation
+
+	;test PROC
+	mov Instruction.operation_type,8
+	mov edi,offset Instruction.operation_str
+	mov byte ptr [edi],"f"
+	inc edi
+	mov byte ptr [edi],"u"
+	inc edi
+	mov byte ptr [edi],"n"
+	inc edi
+	mov byte ptr [edi],"2"
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
 	inc edi
 	mov byte ptr [edi],0
 	call code_translation
@@ -1525,18 +2066,18 @@ main PROC
 	mov Instruction.operation_type,1
 	mov Instruction.operation_len,3
 	mov edi,offset Instruction.operation_str
+	mov byte ptr [edi],"C"
+	inc edi
 	mov byte ptr [edi],"M"
 	inc edi
-	mov byte ptr [edi],"O"
-	inc edi
-	mov byte ptr [edi],"V"
+	mov byte ptr [edi],"P"
 	inc edi
 	mov byte ptr [edi],0
 	mov Instruction.operand1_type,0
 	mov edi,offset Instruction.operand1_name
 	mov byte ptr [edi],"E"
 	inc edi
-	mov byte ptr [edi],"C"
+	mov byte ptr [edi],"D"
 	inc edi
 	mov byte ptr [edi],"X"
 	inc edi
@@ -1573,11 +2114,11 @@ main PROC
 	mov Instruction.operation_type,2
 	mov Instruction.operation_len,3
 	mov edi,offset Instruction.operation_str
+	mov byte ptr [edi],"C"
+	inc edi
 	mov byte ptr [edi],"M"
 	inc edi
-	mov byte ptr [edi],"O"
-	inc edi
-	mov byte ptr [edi],"V"
+	mov byte ptr [edi],"P"
 	inc edi
 	mov byte ptr [edi],0
 	mov Instruction.operand1_type,1
@@ -1601,7 +2142,7 @@ main PROC
 	mov edi,offset Instruction.operand2_name
 	mov byte ptr [edi],"E"
 	inc edi
-	mov byte ptr [edi],"C"
+	mov byte ptr [edi],"D"
 	inc edi
 	mov byte ptr [edi],"X"
 	inc edi
@@ -1677,8 +2218,60 @@ main PROC
 	mov byte ptr [edi],0
 
 	call code_translation
+
+	;test ret
+	mov Instruction.operation_type,10
+	call code_translation
+
+	;test ENDP
+	mov Instruction.operation_type,9
+	mov edi,offset Instruction.operation_str
+	mov byte ptr [edi],"f"
+	inc edi
+	mov byte ptr [edi],"u"
+	inc edi
+	mov byte ptr [edi],"n"
+	inc edi
+	mov byte ptr [edi],"2"
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	inc edi
+	mov byte ptr [edi],0
+	call code_translation
+	mov edi,offset FunctionInfoTable
+	add edi,28
+	invoke crt_printf,addr char,13
+	invoke crt_printf,addr integer,dword ptr [edi + 8]
+	invoke crt_printf,addr integer,dword ptr [edi + 12]
+	invoke crt_printf,addr char,13
+
+
+	;EXECUTE WHEN CODE TRANSLATION IS FINISHED
 	;FILL TEXT SECTION HEADER
 	invoke fill_text_section_header,current_code_bytes,RelocationCount
+	invoke update_jump_bytes
+
+	;SHOW ALL RAW DATA
+	mov edi,offset text_rawdata
+	mov ecx,current_code_bytes
+	cmp ecx,0
+	je L2
+L_show:
+	movzx edx,byte ptr [edi]
+	inc edi
+	pushad
+	invoke crt_printf,addr integer,edx
+	popad
+	loop L_show
+	invoke crt_printf,addr char,13
+
+	call show_relocation_table
+
+L2:
 	INVOKE StdOut,ADDR program_end
 	INVOKE StdIn,ADDR input_char,1
 	INVOKE ExitProcess,0
