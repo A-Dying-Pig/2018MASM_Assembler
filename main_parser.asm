@@ -71,6 +71,7 @@ msg_argument BYTE "missing filename....",10,0
 msg_openfile BYTE "cannot open input file...",10,0
 msg_grammar_err BYTE "syntax error with line number: lalal", 10, 0
 msg_begin_asm BYTE "Assembling: %s",10,0
+msg_parser_byte BYTE "Not implemented! 8 bit current not supported.",10,0
 
 ; ====================================== cmd relative ==========================================
 
@@ -86,16 +87,24 @@ FileLine BYTE 128 DUP(0)
 NewLine BYTE 13,10,0
 
 ; ====================================== parser relative =======================================
-splitList DWORD 10 DUP(?)
+splitListSize = 10
+splitList DWORD splitListSize DUP(?)
 dataOffset DWORD 0
 whichSection DWORD 0 ; 1 for data, 2 for code
 
 ; ====================================== enumerate ============================================
 
-enumerateDataType BYTE "BYTE",0,"DWORD",0,0
+;enumerateDataType BYTE "BYTE",0,"DWORD",0,0
 enumerateBYTEType BYTE "BYTE",0,0
 enumerateDWORDType BYTE "DWORD",0,0
-enumerateInstruction BYTE "ADD",0,"SUB",0,"MOV",0,"AND",0,"OR",0,"XOR",0,"CMP",0,"PUSH",0,"POP",0,"NEG",0,"XCHG",0,"LOOP",0,"CALL",0,"JMP",0,0
+enumerateInclude BYTE "INCLUDE",0,0
+enumerateIncludeLib BYTE "INCLUDELIB",0,0
+
+enumerateOneInstruction BYTE "PUSH",0,"POP",0,"NEG",0,"LOOP",0,"CALL",0,"JMP",0,0
+enumerateTwoInstruction BYTE "ADD",0,"SUB",0,"MOV",0,"AND",0,"OR",0,"XOR",0,"CMP",0,0
+
+enumerateCode BYTE ".code",0
+enumerateData BYTe ".data",0
 
 .code
 ; ==================================================================================================
@@ -164,6 +173,32 @@ str_cmp PROC USES eax edx esi edi,
 	ret
 str_cmp ENDP
 
+; ---------------------------------------------------
+str_count PROC USES edx ebx, strp: PTR BYTE, target: BYTE
+;
+; count the number of a byte in a string
+; ---------------------------------------------------
+	mov bl, target
+	mov edx, strp
+	mov eax, 0
+
+	str_count_LOOP:
+	cmp BYTE PTR [edx], 0
+	je str_count_END
+
+	cmp BYTE PTR [edx], bl
+	jne str_count_noeq
+	inc eax
+
+	str_count_noeq:
+	inc edx
+	jmp str_count_LOOP
+
+	str_count_END:
+	ret
+str_count ENDP
+
+
 ; -------------------------------------------------------
 is_space PROC, sour: BYTE
 ;
@@ -185,6 +220,30 @@ is_space PROC, sour: BYTE
 	mov eax, 2
 	ret
 is_space ENDP
+
+; ------------------------------------------------------
+to_upper PROC USES eax ebx ecx edx esi,
+	source: PTR BYTE
+;
+; change the string to upper case
+; ------------------------------------------------------
+	mov esi, source
+	to_upper_LOOP:
+	cmp BYTE PTR [esi], 0
+	je to_upper_END
+
+	cmp BYTE PTR [esi], 97
+	jl to_upper_Con
+	cmp BYTE PTR [esi], 122
+	jg to_upper_Con
+	sub BYTE PTR [esi], 32
+
+	to_upper_Con:
+	inc esi
+	jmp to_upper_LOOP
+	to_upper_END:
+	ret
+to_upper ENDP
 
 ; ------------------------------------------------------
 is_delimiter PROC,
@@ -235,6 +294,12 @@ split_string PROC USES ebx ecx edx esi,
 	mov ebx, 0 ;splitCount
 	mov splitStatus, 0
 	mov esi, beginPos
+
+	mov ecx, splitListSize
+	split_string_CLEAR:
+	mov DWORD PTR splitList[ebx], 0
+	add ebx, 4
+	loop splitListSize
 
 	split_string_OUTERLOOP:
 		mov al, [esi]
@@ -396,57 +461,57 @@ is_digit ENDP
 
 
 ; ; -------------------------------------------------------
-; split_string PROC USES ebx ecx edx esi,
-; 	maxCut: DWORD, other_deli: BYTE
-; ;
-; ; split the FileLine string, input the maxCut number (mul 4 must)
-; ; store the result in the splitList, return the count(mul 4)
-; ; -------------------------------------------------------
-; 	LOCAL splitStatus: DWORD
-; 	mov ebx, 0 ;splitCount
-; 	mov splitStatus, 0
-; 	mov esi, OFFSET FileLine
+	; split_string PROC USES ebx ecx edx esi,
+	; 	maxCut: DWORD, other_deli: BYTE
+	; ;
+	; ; split the FileLine string, input the maxCut number (mul 4 must)
+	; ; store the result in the splitList, return the count(mul 4)
+	; ; -------------------------------------------------------
+	; 	LOCAL splitStatus: DWORD
+	; 	mov ebx, 0 ;splitCount
+	; 	mov splitStatus, 0
+	; 	mov esi, OFFSET FileLine
 
-; 	split_string_OUTERLOOP:
-; 		mov al, [esi]
-; 		cmp al, 0; L[i] != 0
-; 		je split_string_END
+	; 	split_string_OUTERLOOP:
+	; 		mov al, [esi]
+	; 		cmp al, 0; L[i] != 0
+	; 		je split_string_END
 
-; 		cmp splitStatus, 1
-; 		je split_string_FindEnd
-		
-; 		split_string_FindBegin:
-; 		INVOKE is_space, [esi]
-; 		cmp eax, 0
-; 		je split_string_ChangeToEnd
-; 		inc esi
-; 		jmp split_string_OUTERLOOP
-		
-; 		split_string_ChangeToEnd:
-; 		mov splitList[ebx], esi
-; 		add ebx, 4
-; 		inc esi
-; 		mov splitStatus, 1
-; 		jmp split_string_OUTERLOOP
+	; 		cmp splitStatus, 1
+	; 		je split_string_FindEnd
+			
+	; 		split_string_FindBegin:
+	; 		INVOKE is_space, [esi]
+	; 		cmp eax, 0
+	; 		je split_string_ChangeToEnd
+	; 		inc esi
+	; 		jmp split_string_OUTERLOOP
+			
+	; 		split_string_ChangeToEnd:
+	; 		mov splitList[ebx], esi
+	; 		add ebx, 4
+	; 		inc esi
+	; 		mov splitStatus, 1
+	; 		jmp split_string_OUTERLOOP
 
-; 		split_string_FindEnd:
-; 		INVOKE is_space, [esi]
-; 		cmp eax, 1
-; 		je split_string_ChangeToBegin
-; 		inc esi
-; 		jmp split_string_OUTERLOOP
+	; 		split_string_FindEnd:
+	; 		INVOKE is_space, [esi]
+	; 		cmp eax, 1
+	; 		je split_string_ChangeToBegin
+	; 		inc esi
+	; 		jmp split_string_OUTERLOOP
 
-; 		split_string_ChangeToBegin:
-; 		mov al, 0
-; 		mov [esi], al
-; 		inc esi
-; 		mov splitStatus, 0
-; 		jmp split_string_OUTERLOOP
+	; 		split_string_ChangeToBegin:
+	; 		mov al, 0
+	; 		mov [esi], al
+	; 		inc esi
+	; 		mov splitStatus, 0
+	; 		jmp split_string_OUTERLOOP
 
-; 	split_string_END:
-; 	mov eax, ebx
-; 	ret
-; split_string ENDP
+	; 	split_string_END:
+	; 	mov eax, ebx
+	; 	ret
+	; split_string ENDP
 
 ;---------------------------------------------------------
 inEnumerate PROC USES ebx ecx edx esi,
@@ -674,19 +739,71 @@ ReadLine ENDP
 
 ; ========================================= Parser PROC ============================================
 
+; -----------------------------------------------------
+ParseByteDec PROC USES eax ebx ecx edx esi edi
+	initValStr: PTR BYTE
+;	NOT supported
+; parse a string of vars of 8 bit
+; -----------------------------------------------------
+	INVOKE StdOut, OFFSET msg_parser_byte
+	INVOKE ExitProcess, 0
+ParseByteDec ENDP
+
+; -----------------------------------------------------
+ParseDwordDec PROC USES eax ebx ecx edx esi edi
+	initValStr: PTR BYTE
+;
+; parse a string of vars of 32 bit
+; ------------------------------------------------------
+	LOCAL arrayCount:DWORD
+	mov esi, initValStr
+	INVOKE starts_with, esi, 44
+	cmp eax, 0
+	je ParseDwordError
+
+	INVOKE split_string, ecx, 0, 0, 44
+	mov arrayCount, eax
+	mov ebx, 0
+
+	ParseDwordDec_L1:
+	cmp ebx, arrayCount
+	jge ParseDwordDec_END
+
+	;read the str
+	INVOKE strip_string, splitList[ebx], 1, 0
+	mov edx, eax
+	INVOKE is_digit, edx
+	cmp eax, 0
+	je ParseDwordError
+
+	; success, in edx
+	INVOKE atodw, edx
+
+	------------------ TODO: 添加eax到.data的rawdata中-------------------------
+	
+	add dataOffset, 4
+	add ebx, 4
+
+	jmp ParseDwordDec_L1
+	ParseDwordDec_END:
+	ret
+	ParseDwordError: ; error
+	INVOKE StdOut, OFFSET msg_grammar_err
+	INVOKE ExitProcess, 0
+ParseDwordDec ENDP
+
 ; -------------------------------------------------
 ParseDataDec PROC USES eax ebx ecx edx esi
 ;
 ; the FileLine is a data declaration, parse this declaration
 ; ---------------------------------------------------
-	LOCAL NameStr:DWORD
+	LOCAL NameStr:DWORD, arrayCount: DWORD
+	mov arrayCount, 0
 	; data declaration as some_name BYTE ?
-	INVOKE split_string
+	INVOKE split_string, OFFSET FileLine, 12, 1, 0
 
-	;see if the size is enough
-	cmp eax, 12
+	cmp eax, 12 ;see if the size is enough
 	jl ParseDataError
-
 
 	mov ebx, splitList[0] ;value name
 	mov edx, splitList[4] ;value type
@@ -719,30 +836,104 @@ ParseDataDec PROC USES eax ebx ecx edx esi
 
 	jmp ParseDataError
 
-	ParseDataDec_BYTE:
-	add dataOffset, 1
 	;--------------------------------- Init
-	jmp ParseDataDec_Con2
+	;|--------byte--------
+	ParseDataDec_BYTE:
+		INVOKE ParseByteDec, ecx
+		jmp ParseDataDec_Con2
+
 	ParseDataDec_DWORD:
-	add dataOffset, 4
-	jmp ParseDataDec_Con2
+		INVOKE ParseDwordDec, ecx
+		jmp ParseDataDec_Con2
 
 	ParseDataDec_Con2:
-
-	; current work: add to .data section
-	
 	ret
 	ParseDataError:
 	INVOKE StdOut, OFFSET msg_grammar_err
 	INVOKE ExitProcess, 0
 ParseDataDec ENDP
 
+; -------------------------------------------------
+ParseOneOpIns PROC USES eax ebx ecx edx esi,
+	Operand: PTR BYTE
+;
+; parser a one op instruction
+; --------------------------------------------------
+ParseOneOpIns ENDP
+
+; -------------------------------------------------
+ParseTwoOpIns PROC USES eax ebx ecx edx esi,
+	Operand: PTR BYTE
+;
+; parser a two op instruction
+; --------------------------------------------------
+ParseTwoOpIns ENDP
+
 ;-------------------------------------------------------
 ParseTextStr PROC USES eax ebx ecx edx esi
 ;
 ; the FileLine is a code line, parser this line
 ;-------------------------------------------------------
+	mov edx, OFFSET FileLine
+	INVOKE str_count, edx, 58
+	cmp eax, 1
+	jg ParseTextError
+	cmp eax, 1
+	jl ParseTextStr_Con1 ; no label occur
+
+	INVOKE split_string, edx, 8, 0, 58
+	push eax
+
+	mov ebx, splitList[0]
+	mov edx, splitList[4] ; pass the label
+
+	; check if label has space in it
+	INVOKE str_count, ebx, 32
+	cmp eax, 0
+	jne ParseTextError
+	INVOKE str_count, ebx, 9
+	cmp eax, 0
+	jne ParseTextError
+	
+	-------------------------------- Not implemented ---------------------------------
+	--------------------------------TODO: add the label to the label table
+
+	pop eax
+	cmp eax, 4
+	je ParseTextStr_END
+
+	ParseTextStr_Con1: ; finish label, edx has the string
+
+	INVOKE split_string, edx, 8, 1, 0
+
+	;see the operation
+	mov ebx, splitList[0]
+	mov edx, splitList[4]
+	INVOKE inEnumerate, ebx, enumerateOneInstruction
+	cmp eax, 1
+	je ParseTextStr_one
+	INVOKE inEnumerate, ebx, enumerateTwoInstruction
+	cmp eax, 1
+	je ParseTextStr_two
+	jmp ParseTextError
+
+
+	ParseTextStr_one:
+	-------------------------------- Not implemented ---------------------------------
+	--------------------------------TODO: add the ins to the ins table
+	INVOKE ParseOneOpIns, edx
+	jmp ParseTextStr_END
+
+	ParseTextStr_two:
+	-------------------------------- Not implemented ---------------------------------
+	--------------------------------TODO: add the ins to the ins table
+	INVOKE ParseTwoOpIns, edx
+
+	ParseTextStr_END:
 	ret
+	ParseTextError:
+	INVOKE StdOut, OFFSET msg_grammar_err
+	INVOKE ExitProcess, 0
 ParseTextStr ENDP
 
 ; ======================================== MAIN PROC ===============================================
@@ -770,7 +961,36 @@ MainParser PROC USES eax ebx ecx edx esi edi
 	je MainParser_Code
 
 	; both not, start of the file, declaration
-	--------------------- Not implemented! -----------------------------------
+	INVOKE split_string, ADDR FileLine, 8, 1, 0
+
+	mov edx, splitList[0]
+	INVOKE inEnumerate, edx, OFFSET enumerateInclude
+	cmp eax, 1
+	je MainParser_include
+	
+	INVOKE inEnumerate, edx, OFFSET enumerateIncludeLib
+	cmp eax, 1
+	je MainParser_includelib
+
+	INVOKE str_cmp, edx, enumerateCode
+	je MainParser_code
+	INVOKe str_cmp, edx, enumerateData
+	je MainParser_data
+
+	jmp MainParser_Parsering
+
+	MainParser_include:
+	-------------------------------Not implemented----------------------
+
+	MainParser_includelib:
+	-------------------------------Not implemented----------------------
+
+	MainParser_code:
+	mov whichSection, 2
+	jmp MainParser_Parsering
+
+	MainParser_data:
+	mov whichSection, 1
 	jmp MainParser_Parsering
 
 	; data section
