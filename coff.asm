@@ -14,6 +14,7 @@ includelib masm32.lib
 	allFileOffset DWORD 0
 	drectvelib BYTE "-defaultlib:",0
 	drectveentry BYTE "-entry:main@0 ",0
+	drectvename BYTE ".drectve",0
 	blankspace BYTE " ",0
 .code
 ;;-------------------------------
@@ -23,7 +24,12 @@ includelib masm32.lib
 
 ;--------------------------------
 ; finish the FileHeader structure
-; Note:Called after symbol table
+; Needed:
+;	FileSymbolTableFini,(SectionCount,SectionAuxSymbolTableCount,CalledFunctionSymbolEntryCount,GlobalVCount,FunctionInfoCount)
+; Finish:
+;	FileHeader:f_magic,f_nscns,f_nsyms,f_opthdr,f_flags(remain:f_timdat,f_symptr)
+; Note:
+;	Called after all symboltableFini functions
 ;--------------------------------
 FileHeaderFini PROC USES eax ebx ecx edx esi edi
     mov FileHeader.f_magic,014Ch
@@ -48,12 +54,19 @@ FileHeaderFini PROC USES eax ebx ecx edx esi edi
     mov FileHeader.f_flags,0
 	ret
 FileHeaderFini ENDP
+
+
 ;--------------------------------
 ; finish section header structure and symbol table of sections
 ; Needed:
 ;	SectionHeader:s_name,s_size,s_nreloc,s_nlnno
-; Remain:
-;	no
+;	SectionCount
+; Finish:
+;	SectionSymbolTable:n_name,n_value,n_scnum,n_type,n_sclass,n_numaux,RawDataSize,RawDataptr(all)
+;	SectionAuxSymbolTable:seclength,numberOfRelocations,numberOfLinenumbers(all)
+;	SectionAuxSymbolTableCount
+; Note:
+;	called before all functions using SectionAuxSymbolTableCount
 ;--------------------------------
 SectionSymbolFini PROC USES eax ebx ecx edx esi edi
     mov ecx,SectionCount
@@ -61,9 +74,9 @@ sectionsymbol:
 	push ecx
 	neg ecx
 	add ecx,SectionCount
-	invoke idxTransform,ecx,SIZEOF SectionSymbolTable
+	invoke idxTransform,ecx,TYPE SectionSymbolTable
 	mov edx,eax
-	invoke idxTransform,ecx,SIZEOF SectionHeaderproto
+	invoke idxTransform,ecx,TYPE SectionHeaderproto
 	mov ecx,edx
 	mov edx,eax
 	;n_name
@@ -84,6 +97,7 @@ sectionsymbol:
 	mov SectionSymbolTable[ecx].n_sclass,3
 	;aux
 	mov eax,SectionAuxSymbolTableCount
+	invoke idxTransform,eax,TYPE SectionAuxSymbolTableproto
 	mov ebx,SectionHeader[edx].s_size
 	mov SectionAuxSymbolTable[eax].seclength,ebx
 	mov bx,SectionHeader[edx].s_nreloc
@@ -125,8 +139,8 @@ SectionSymbolFini ENDP
 ; finish global variable symbol table
 ; Needed:
 ;	GlobalvSymbolTable:n_name,n_value
-; Remain:
-;	no
+; Finish:
+;	GlobalvSymbolTable:n_scnum,n_type,n_sclass,n_numaux
 ;----------------------------------------
 GlobalvSymbolTableFini PROC USES eax ebx ecx edx esi edi
 	mov ecx,GlobalVCount
@@ -134,7 +148,7 @@ GlobalvSymbolTablel:
 	push ecx
 	neg ecx
 	add ecx,GlobalVCount
-	invoke idxTransform,ecx,SIZEOF SymbolEntryproto
+	invoke idxTransform,ecx,type SymbolEntryproto
 	mov ecx,eax
 	mov GlobalvSymbolTable[ecx].n_scnum,2
 	mov GlobalvSymbolTable[ecx].n_type,0
@@ -153,6 +167,7 @@ GlobalvSymbolTableFini ENDP
 ;	FunctionInfo completed
 ; Remain:
 ;	Function Definition Aux:PointerToLineNumber(abandoned)
+;	test
 ;----------------------------------------
 FunctionSymbolTableFini PROC USES eax ebx ecx edx esi edi
 	mov ecx, FunctionInfoCount
@@ -164,15 +179,18 @@ FunctionSymbolTableFini PROC USES eax ebx ecx edx esi edi
 	add edx,SectionAuxSymbolTableCount
 	add edx,CalledFunctionSymbolEntryCount
 	add edx,GlobalVCount
-	inc edx
+	
 functionsymboltable:
+	add edx,7
 	push ecx
 	neg ecx
 	add ecx,FunctionInfoCount
-	invoke idxTransform,ecx,SIZEOF FunctionInfoproto
+	invoke idxTransform,ecx,TYPE FunctionInfoproto
 	mov ecx,eax
 	mov ebx,4
+	push edx
 	mul ebx
+	pop edx
 	;function def
 	lea esi,FunctionInfoTable[ecx].f_name
 	lea edi,FunctionSymbolTable[eax].n_name
@@ -198,7 +216,7 @@ functionsymboltable:
 	inc FunctionAuxSymbolTableCount
 	pop eax
 	;bf
-	add eax,SIZEOF SymbolEntryproto
+	add eax,TYPE SymbolEntryproto
 	lea esi,bfname
 	lea edi,FunctionSymbolTable[eax].n_name
 	push ecx
@@ -220,7 +238,7 @@ functionsymboltable:
 	inc FunctionbfefAuxSymbolTableCount
 	pop eax
 	;lf
-	add eax,SIZEOF SymbolEntryproto
+	add eax,TYPE SymbolEntryproto
 	lea esi,lfname
 	lea edi,FunctionSymbolTable[eax].n_name
 	push ecx
@@ -235,7 +253,7 @@ functionsymboltable:
 	mov FunctionSymbolTable[eax].n_numaux,0
 
 	;ef
-	add eax,SIZEOF SymbolEntryproto
+	add eax,TYPE SymbolEntryproto
 	lea esi,efname
 	lea edi,FunctionSymbolTable[eax].n_name
 	push ecx
@@ -262,9 +280,7 @@ functionsymboltable:
 FunctionSymbolTableFini ENDP
 
 ;---------------------------------------------
-; Finish file symbol table
-; Remain:
-;	no
+; Finish .file symbol table
 ;---------------------------------------------
 FileSymbolTableFini PROC USES eax ebx ecx edx esi edi
 	;gen file define
@@ -292,7 +308,7 @@ FileSymbolTableFini PROC USES eax ebx ecx edx esi edi
 	push edx
 
 	mov eax,ebx
-	mov edx,SIZEOF SymbolauxEntryproto
+	mov edx,TYPE SymbolauxEntryproto
 	mul edx
 	mov ebx,eax
 copyfilepath:
@@ -304,7 +320,7 @@ copyfilepath:
 	pop ecx
 	inc SymbolauxEntryCount
 	mov eax,SymbolauxEntryCount
-	mov edx,SIZEOF SymbolauxEntryproto
+	mov edx,TYPE SymbolauxEntryproto
 	mul edx
 	mov ebx,eax
 	pop ecx
@@ -371,8 +387,11 @@ idxTransform ENDP
 
 ;------------------------------------
 ; Finish called function symbol table
+; Finish:
+;	CalledFunctionSymbolTable:n_type,n_sclass(all)
 ; Needed:
-;	n_name,
+;	CalledFunctionSymbolTable:n_name,
+;	CalledFunctionSymbolEntryCount
 ;------------------------------------
 CalledFunctionSymbolTableFini PROC
 	mov ecx,CalledFunctionSymbolEntryCount
@@ -392,8 +411,14 @@ CalledFunctionSymbolTableFini ENDP
 
 ;-------------------------------------
 ; change relocation table index
+; Finish:
+;	RelocationTable:r_symndx
+; Need:
+;	RelocationTable:r_type,symbol table except functions
 ; Remain:
 ;	test
+; Note:
+;	called after all symbol tables except functions finished
 ;-------------------------------------
 RelocationTableFini PROC USES eax ebx ecx edx esi edi
 	;change called function relocation
@@ -429,6 +454,11 @@ RelocationTableFini ENDP
 
 ;----------------------------------------------
 ; Finish all file offset
+; Need:
+;	SectionHeader:s_size
+; Finish:
+;	SectionHeader:s_paddr,s_scnptr,s_flags,s_relptr
+;	FileHeader:f_symptr
 ; Remain:
 ;	no
 ;----------------------------------------------
@@ -503,10 +533,23 @@ sectionoffsetloop:
 	ret
 AllOffsetFini ENDP
 
+;------------------------------------------------
+; Finish drectve raw_data and section header
+; Finish:
+;	drectve_rawdata
+; Need:
+;	DrectveRawDataTable:all
+;	DrectveRawDataEntryCount
+; Remain:
+;	
+; Note:
+;	called before all procs using SectionHeader
+;------------------------------------------------
 DrectveFini PROC USES eax ebx ecx edx esi edi
 	cld
 	lea edi,drectve_rawdata
 	mov ecx,DrectveRawDataEntryCount
+	mov ebx,0
 drectvestrcpy:
 	push ecx
 	neg ecx
@@ -516,11 +559,14 @@ drectvestrcpy:
 	lea esi,drectvelib
 	mov ecx,LENGTHOF drectvelib
 	dec ecx
+	add ebx,ecx
 	rep movsb
 	lea esi,DrectveRawDataTable[eax].libpath
 	mov ecx,DrectveRawDataTable[eax].sizep
+	add ebx,ecx
 	rep movsb
 	lea esi,blankspace
+	add ebx,1
 	mov ecx,1
 	rep movsb
 	
@@ -530,7 +576,14 @@ drectvestrcpy:
 	lea esi,drectveentry
 	mov ecx,LENGTHOF drectveentry
 	dec ecx
+	add ebx,ecx
 	rep movsb
+	;header
+	lea esi,drectvename
+	lea edi,SectionHeader[3*SectionHeaderproto].s_name
+	cld
+	movsb
+	mov SectionHeader[3*SectionHeaderproto].s_size,ebx
 	ret
 DrectveFini ENDP
 END
