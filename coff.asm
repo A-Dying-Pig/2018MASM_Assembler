@@ -1,10 +1,11 @@
 .386
 .model flat, stdcall
 option casemap : none
+
 include global.inc
 include coff.inc
-include masm32.inc
-includelib masm32.lib
+
+
 .data
 	bfname BYTE ".bf",0
 	lfname BYTE ".lf",0
@@ -16,6 +17,8 @@ includelib masm32.lib
 	drectveentry BYTE "-entry:main@0 ",0
 	drectvename BYTE ".drectve",0
 	blankspace BYTE " ",0
+	coffname BYTE "a.obj",0
+	filehandler HANDLE ?
 .code
 ;;-------------------------------
 ;; transform the structure to coff
@@ -144,6 +147,8 @@ SectionSymbolFini ENDP
 ;----------------------------------------
 GlobalvSymbolTableFini PROC USES eax ebx ecx edx esi edi
 	mov ecx,GlobalVCount
+	cmp ecx,0
+	je GlobalvSymbolTableFiniend
 GlobalvSymbolTablel:
 	push ecx
 	neg ecx
@@ -157,6 +162,7 @@ GlobalvSymbolTablel:
 	pop ecx
 	dec ecx
 	jne GlobalvSymbolTablel
+	GlobalvSymbolTableFiniend:
 	ret
 GlobalvSymbolTableFini ENDP
 
@@ -395,6 +401,8 @@ idxTransform ENDP
 ;------------------------------------
 CalledFunctionSymbolTableFini PROC
 	mov ecx,CalledFunctionSymbolEntryCount
+	cmp ecx,0
+	je CalledFunctionSymbolTableFiniend
 calledfunctionsymbol:
 	push ecx
 	invoke idxTransform,ecx,TYPE SymbolEntryproto
@@ -406,6 +414,7 @@ calledfunctionsymbol:
 	pop ecx
 	dec ecx
 	jne calledfunctionsymbol
+CalledFunctionSymbolTableFiniend:
 	ret
 CalledFunctionSymbolTableFini ENDP
 
@@ -586,4 +595,90 @@ drectvestrcpy:
 	mov SectionHeader[3*SectionHeaderproto].s_size,ebx
 	ret
 DrectveFini ENDP
+
+;--------------------------------------------
+; all procs in coff.asm will be called
+;--------------------------------------------
+COFFStructFix PROC USES eax ebx ecx edx esi edi
+
+	call DrectveFini
+
+	call AllOffsetFini
+
+	call FileSymbolTableFini
+
+	call SectionSymbolFini
+
+	call CalledFunctionSymbolTableFini
+
+	call GlobalvSymbolTableFini
+
+	call RelocationTableFini
+
+	call FunctionSymbolTableFini
+
+	call FileHeaderFini
+
+	ret
+COFFStructFix ENDP
+
+
+;----------------------------------------------
+; output coff
+;----------------------------------------------
+COFFsave PROC USES eax ebx ecx edx esi edi
+	;create file
+	invoke CreateFile,addr coffname,GENERIC_WRITE , FILE_SHARE_WRITE , NULL,CREATE_ALWAYS, FILE_ATTRIBUTE_ARCHIVE, NULL
+	mov filehandler,eax
+	;file header
+	invoke WriteStruct,filehandler,ADDR FileHeader,TYPE FileHeaderproto,TYPE FileHeaderproto,1
+	;section header
+	invoke WriteStruct,filehandler,ADDR SectionHeader,TYPE SectionHeaderproto,TYPE SectionHeaderproto,SectionCount
+	;.text
+	invoke WriteStruct,filehandler,ADDR text_rawdata,1,1,SectionHeader[0].s_size
+	;if .text is odd
+	mov eax,SectionHeader[0].s_size
+	and eax,1
+	jz eventextjmp
+	invoke WriteBlank,filehandler
+	eventextjmp:
+	;relo and linenum
+	invoke WriteStruct,filehandler,ADDR RelocationTable,TYPE RelocationEntryproto,TYPE RelocationEntryproto,RelocationCount
+	;.data
+	invoke WriteStruct,filehandler,ADDR data_rawdata,1,1,SectionHeader[SectionHeaderproto].s_size
+	;.drectve
+	invoke WriteStruct,filehandler,ADDR drectve_rawdata,1,1,SectionHeader[3*SectionHeaderproto].s_size
+	;if symbol is even
+	mov eax,SectionHeader[3*SectionHeaderproto].s_scnptr
+	add eax,SectionHeader[3*SectionHeaderproto].s_size
+	and eax,1
+	jz evendrecjmp
+	invoke WriteBlank,filehandler
+	evendrecjmp:
+	;write file symbol
+	invoke WriteStruct,filehandler,ADDR FileSymbolTable,TYPE SymbolEntryproto,18,1
+	invoke WriteStruct,filehandler,ADDR SymbolauxTable,TYPE SymbolEntryproto,18,SymbolauxEntryCount
+	;write compid
+	invoke WriteStruct,filehandler,ADDR COMPIDSymbolTable,18,1,1
+	;write section and aux
+
+	;write lib function
+
+	;write global v
+
+	;write function
+
+	;write string table
+
+	invoke CloseHandle,filehandler
+	ret
+COFFsave ENDP
+
+WriteStruct PROC FAR C USES eax ebx ecx edx esi edi,fhandler:HANDLE,structbegin:DWORD,structsize:DWORD,savesize:DWORD,savenum:DWORD
+
+WriteStruct ENDP
+
+WriteBlank PROTO FAR C USES eax ebx ecx edx esi edi,fhandler:HANDLE
+
+WriteBlank ENDP
 END

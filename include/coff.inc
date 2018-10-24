@@ -1,6 +1,11 @@
 ;;-------------------------------
 ;; transform the structure to coff
 ;;-------------------------------
+include windows.inc
+include kernel32.inc
+includelib kernel32.lib
+include masm32.inc
+includelib masm32.lib
 ;;----------TOOLS----------------
 ;--------------------------------------
 ; result stored in ebx
@@ -112,3 +117,15 @@ AllOffsetFini PROTO
 ;	called before all procs using SectionHeader
 ;------------------------------------------------
 DrectveFini PROTO
+
+;--------------------------------------------
+; all procs in coff.asm will be called
+;--------------------------------------------
+COFFStructFix PROTO
+
+;----------------------------------------------
+; main output coff
+;----------------------------------------------
+COFFsave PROTO
+WriteStruct PROTO FAR C fhandler:HANDLE,structbegin:DWORD,structsize:DWORD,savesize:DWORD,savenum:DWORD
+WriteBlank PROTO FAR C fhandler:HANDLE

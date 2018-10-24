@@ -41,17 +41,17 @@ EXTERNDEF STACK_rawdata:BYTE
 
 ;relocation table
 RelocationEntryproto STRUCT
-    r_vaddr DWORD ?
-    r_symndx DWORD ?
-    r_type WORD ?
+    r_vaddr DWORD 0
+    r_symndx DWORD 0
+    r_type WORD 0
 RelocationEntryproto ENDS
 EXTERNDEF RelocationCount:DWORD
 EXTERNDEF RelocationTable:RelocationEntryproto
 
 ;linenum table
 LineNumEntryproto STRUCT
-    l_addr DWORD ?
-    l_lnno WORD ?
+    l_addr DWORD 0
+    l_lnno WORD 0
 LineNumEntryproto ENDS
 EXTERNDEF LineNumCount:DWORD
 EXTERNDEF LineNumTable:LineNumEntryproto
