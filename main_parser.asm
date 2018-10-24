@@ -72,6 +72,7 @@ msg_openfile BYTE "cannot open input file...",10,0
 msg_grammar_err BYTE "syntax error with line number: lalal", 10, 0
 msg_begin_asm BYTE "Assembling: %s",10,0
 msg_parser_byte BYTE "Not implemented! 8 bit current not supported.",10,0
+msg_label_long BYTE "label too long....",10,0
 
 ; ====================================== cmd relative ==========================================
 
@@ -102,6 +103,10 @@ enumerateIncludeLib BYTE "INCLUDELIB",0,0
 
 enumerateOneInstruction BYTE "PUSH",0,"POP",0,"NEG",0,"LOOP",0,"CALL",0,"JMP",0,0
 enumerateTwoInstruction BYTE "ADD",0,"SUB",0,"MOV",0,"AND",0,"OR",0,"XOR",0,"CMP",0,0
+enumerateJump BYTE "JMP",0,"LOOP",0,0
+enumerateCall BYTE "CALL",0,0
+
+enumerateReg BYTE "EAX",0,"EBX",0,"ECX",0,"EDX",0,"ESI",0,"EDI",0,"ESP",0,"EBP",0,"EAX",0,0
 
 enumerateCode BYTE ".code",0
 enumerateData BYTe ".data",0
@@ -617,15 +622,22 @@ pushGlobalV PROC USES eax ebx edx,
 	mul ebx
 	lea edx, GlobalvSymbolTable[eax].n_name
 
-	cmp [strp], 0
-	je pushGlobalV_off
-	INVOKE str_copy, strp, edx
-	jmp pushGlobalV_Con1
-	pushGlobalV_off:
-	mov ebx, DWORD PTR strp
-	mov DWORD PTR [edx], ebx
+	; judge length, if too long push string table
+	INVOKE str_len, strp
+	cmp eax, 8
+	jl pushGlobalV_driect
 
-	pushGlobalV_Con1:
+	; push to string table first
+	INVOKE pushStringTable, strp
+	mov DWORD PTR [edx], 0
+	add edx, 4
+	mov DWORD PTR [edx], eax
+	jmp pushGlobalV_Con2
+
+	pushGlobalV_driect:
+	INVOKE str_copy, strp, edx
+
+	pushGlobalV_Con2:
 	mov ebx, in_val
 	mov GlobalvSymbolTable[eax].n_value, ebx
 	inc GlobalVCount
@@ -636,7 +648,7 @@ pushGlobalV ENDP
 pushStringTable PROC USES ebx edx,
 	strp:PTR BYTE
 ;
-; push a string into the table, return the begining of a string
+; push a string into the table, return the begining of the new string
 ;------------------------------------------
 	mov ebx, DWORD PTR StringTable
 	mov edx, DWORD PTR StringTable
@@ -651,6 +663,59 @@ pushStringTable PROC USES ebx edx,
 	ret
 pushStringTable ENDP
 
+; -------------------------------------------------------------
+pushLabel PROC USES eax ebx ecx edx,
+	l_name: PTR BYTE
+;
+; push a string to label table, including own func and label
+; -------------------------------------------------------------
+	mov eax, LabelCount
+	mov ebx, TYPE LabelTable
+	mul ebx
+	lea edx, LabelTable[eax].label_name
+
+	; judge length, if too long push string table
+	INVOKE str_len, strp
+	cmp eax, 8
+	jg pushLabel_error
+
+	INVOKE str_copy, strp, edx
+	inc LabelCount
+	ret
+	pushLabel_error:
+	INVOKE StdOut, OFFSET msg_label_long
+	INVOKE ExitProcess, 0
+pushLabel ENDP
+
+; ========================================== find in tables =========================================
+
+; -----------------------------------------------------------
+findStringTable PROC USES ebx, edx,
+	strp: PTR BYTE
+;
+; find the string in the table, return the pos of begin, if 0 -> no found
+; -----------------------------------------------------------
+	mov ebx, DWORD PTR StringTable
+	mov edx, 4
+
+	findStr_Loop:
+	INVOKE str_cmp, StringTable[edx], strp
+	je findStr_END
+	INVOKE str_len, StringTable[edx]
+	add edx, eax
+	cmp edx, ebx
+	je findStr_NO
+	jmp findStr_Loop
+
+	findStr_END:
+	mov eax, edx
+	ret
+	findStr_NO:
+	mov eax, 0
+	ret
+findStringTable ENDP
+
+
 ;=========================================== init varibles ==========================================
 
 ;----------------------------------
@@ -660,6 +725,7 @@ InitParser PROC USES eax
 ;----------------------------------
 	mov eax, 4
 	mov DWORD PTR StringTable, eax
+	mov LabelCount, 0
 	ret
 InitParser ENDP
 
@@ -779,7 +845,10 @@ ParseDwordDec PROC USES eax ebx ecx edx esi edi
 	; success, in edx
 	INVOKE atodw, edx
 
-	------------------ TODO: 添加eax到.data的rawdata中-------------------------
+	;添加eax到.data的rawdata中
+	mov edx, OFFSET data_rawdata
+	add edx, dataOffset
+	mov DWORD PTR [edx], eax
 	
 	add dataOffset, 4
 	add ebx, 4
@@ -810,19 +879,19 @@ ParseDataDec PROC USES eax ebx ecx edx esi
 	mov ecx, splitList[8] ;init value (as a string)
 
 	; ---------------------------- Name
-	INVOKE str_len, ebx
-	cmp eax, 8
-	jl ParseDataDec_pushGLO
+	;INVOKE str_len, ebx
+	;cmp eax, 8
+	;jl ParseDataDec_pushGLO
 
 	; push to string table first
-	INVOKE pushStringTable, ebx
-	mov WORD PTR [NameStr+2], ax
-	mov WORD PTR [NameStr], 0
-	INVOKE pushGlobalV, ADDR NameStr, dataOffset
-	jmp ParseDataDec_Con1
-
-	ParseDataDec_pushGLO: ; directly push
+	;INVOKE pushStringTable, ebx
+	;mov DWORD PTR [NameStr+2], ax
+	;mov DWORD PTR [NameStr], 0
 	INVOKE pushGlobalV, ebx, dataOffset
+	;jmp ParseDataDec_Con1
+
+	;ParseDataDec_pushGLO: ; directly push
+	;INVOKE pushGlobalV, ebx, dataOffset
 
 	ParseDataDec_Con1:
 	; ---------------------------- type
@@ -859,7 +928,128 @@ ParseOneOpIns PROC USES eax ebx ecx edx esi,
 ;
 ; parser a one op instruction
 ; --------------------------------------------------
+	INVOKE split_string, Operand, 0, 1, 0
+	cmp eax, 4
+	jne ParseOneOpIns_error
+
+	mov edx, splitList[0]
+	INVOKE strip_string, edx, 1, 0
+	mov edx, eax
+
+	INVOKE AddOper1, edx
+	ret
+
+	ParseOneOpIns_error:
+	INVOKE StdOut, OFFET msg_grammar_err
+	INVOKE ExitProcess, 0
 ParseOneOpIns ENDP
+
+; -------------------------------------------------
+; add opers to Instruction
+AddOper1 PROC USES eax ebx ecx edx esi,
+	oper: PTR BYTE
+	mov edx, oper
+
+	INVOKE is_digit, edx
+	cmp eax, 1
+	je AddOper1_Imm
+	INVOKE inEnumerate, edx, enumerateReg
+	cmp eax, 1
+	je AddOper1_Reg
+	jmp AddOper1_Mem
+
+	AddOper1_Imm:
+		mov Instruction.operand1_type, 0
+		INVOKE atodw, edx
+		mov Instruction.operand1_name, eax
+		ret
+
+	AddOper1_Reg:
+		mov Instruction.operand1_type, 1
+		INVOKE str_len, edx
+		mov Instruction.operand1_len, eax
+		INVOKE str_copy, edx, OFFSET Instruction.operand1_name
+		mov eax, 1
+		ret
+	
+	AddOper1_Mem:
+		mov Instruction.operand1_type, 2
+		INVOKE str_len, edx
+		cmp eax, 8
+		jl AddOper1_Con2
+
+		mov Instruction.operand1_len, 8
+		INVOKE findStringTable, edx
+		cmp eax, 0
+		je AddOper1_error
+
+		mov esi, OFFSET Instruction.operand1_name
+		mov DWORD PTR [esi], 0
+		mov DWORD PTR [esi + 4], eax
+		ret
+
+		AddOper1_Con2:
+		mov Instruction.operand1_len, eax
+		INVOKE str_copy, edx, OFFSET Instruction.operand1_name
+		ret
+
+	AddOper1_error:
+	INVOKE StdOut, OFFET msg_grammar_err
+	INVOKE ExitProcess, 0
+AddOper1 ENDP
+; 
+AddOper2 PROC USES eax ebx ecx edx esi,
+	oper: PTR BYTE
+	mov edx, oper 
+
+	INVOKE is_digit, edx
+	cmp eax, 1
+	je AddOper2_Imm
+	INVOKE inEnumerate, edx, enumerateReg
+	cmp eax, 1
+	je AddOper2_Reg
+	jmp AddOper2_Mem
+
+	AddOper2_Imm:
+		mov Instruction.operand2_type, 0
+		INVOKE atodw, edx
+		mov Instruction.operand2_name, eax
+		ret
+
+	AddOper2_Reg:
+		mov Instruction.operand2_type, 1
+		INVOKE str_len, edx
+		mov Instruction.operand2_len, eax
+		INVOKE str_copy, edx, OFFSET Instruction.operand2_name
+		mov eax, 1
+		ret
+	
+	AddOper2_Mem:
+		mov Instruction.operand2_type, 2
+		INVOKE str_len, edx
+		cmp eax, 8
+		jl AddOper2_Con2
+
+		mov Instruction.operand2_len, 8
+		INVOKE findStringTable, edx
+		cmp eax, 0
+		je AddOper2_error
+
+		mov esi, OFFSET Instruction.operand2_name
+		mov DWORD PTR [esi], 0
+		mov DWORD PTR [esi + 4], eax
+		ret
+
+		AddOper2_Con2:
+		mov Instruction.operand2_len, eax
+		INVOKE str_copy, edx, OFFSET Instruction.operand2_name
+		ret
+
+	AddOper2_error:
+	INVOKE StdOut, OFFET msg_grammar_err
+	INVOKE ExitProcess, 0
+AddOper2 ENDP
+; --------------------------------------------------
 
 ; -------------------------------------------------
 ParseTwoOpIns PROC USES eax ebx ecx edx esi,
@@ -867,6 +1057,24 @@ ParseTwoOpIns PROC USES eax ebx ecx edx esi,
 ;
 ; parser a two op instruction
 ; --------------------------------------------------
+	INVOKE split_string, Operand, 0, 0, 44
+	cmp eax, 8
+	jne ParseTwoOpIns_error
+
+	mov ebx, splitList[0]
+	mov edx, splitList[4]
+	INVOKE strip_string, ebx, 1, 0
+	mov ebx, eax
+	INVOKE strip_string, edx, 1, 0
+	mov edx, eax
+
+	INVOKE AddOper1, edx
+	INVOKE AddOper2, edx
+	ret
+
+	ParseTwoOpIns_error:
+	INVOKE StdOut, OFFSET msg_grammar_err
+	INVOKE ExitProcess, 0
 ParseTwoOpIns ENDP
 
 ;-------------------------------------------------------
@@ -895,39 +1103,62 @@ ParseTextStr PROC USES eax ebx ecx edx esi
 	cmp eax, 0
 	jne ParseTextError
 	
-	-------------------------------- Not implemented ---------------------------------
-	--------------------------------TODO: add the label to the label table
+	;done: add the label to the label table
+	INVOKE pushLabel, ebx
 
 	pop eax
 	cmp eax, 4
 	je ParseTextStr_END
 
 	ParseTextStr_Con1: ; finish label, edx has the string
-
 	INVOKE split_string, edx, 8, 1, 0
 
 	;see the operation
 	mov ebx, splitList[0]
 	mov edx, splitList[4]
-	INVOKE inEnumerate, ebx, enumerateOneInstruction
+	INVOKE inEnumerate, ebx, ADDR enumerateJump
+	cmp eax, 1
+	je ParseTextStr_jump
+	INVOKE inEnumerate, ebx, ADDR enumerateCall
+	cmp eax, 1
+	je ParseTextStr_call
+	INVOKE inEnumerate, ebx, ADDR enumerateOneInstruction
 	cmp eax, 1
 	je ParseTextStr_one
-	INVOKE inEnumerate, ebx, enumerateTwoInstruction
+	INVOKE inEnumerate, ebx, ADDR enumerateTwoInstruction
 	cmp eax, 1
 	je ParseTextStr_two
 	jmp ParseTextError
 
 
 	ParseTextStr_one:
-	-------------------------------- Not implemented ---------------------------------
-	--------------------------------TODO: add the ins to the ins table
+	INVOKE str_len, ebx
+	mov Instruction.operation_len, eax
+	INVOKE str_copy, ebx, ADDR Instruction.operation_str
 	INVOKE ParseOneOpIns, edx
 	jmp ParseTextStr_END
 
 	ParseTextStr_two:
-	-------------------------------- Not implemented ---------------------------------
-	--------------------------------TODO: add the ins to the ins table
+	INVOKE str_len, ebx
+	mov Instruction.operation_len, eax
+	INVOKE str_copy, ebx, ADDR Instruction.operation_str
 	INVOKE ParseTwoOpIns, edx
+	jmp ParseTextStr_END
+
+	ParseTextStr_jump:
+	INVOKE str_len, ebx
+	mov Instruction.operation_len, eax
+	INVOKE str_copy, ebx, ADDR Instruction.operation_str
+	INVOKE ParseJump, edx
+
+	jmp ParseTextStr_END
+
+	ParseTextStr_call:
+	INVOKE str_len, ebx
+	mov Instruction.operation_len, eax
+	INVOKE str_copy, ebx, ADDR Instruction.operation_str
+	INVOKE ParseCall, edx
+	jmp ParseTextStr_END
 
 	ParseTextStr_END:
 	ret

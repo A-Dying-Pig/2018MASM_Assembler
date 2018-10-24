@@ -87,6 +87,21 @@ EXTERNDEF SymbolauxTable:SymbolauxEntryproto
 EXTERNDEF StringEntryCount:DWORD
 EXTERNDEF StringTable:BYTE
 
+;per instruction
+Instructionproto STRUCT
+    operation_type DWORD ?
+    operation_len  DWORD ?  
+    operation_str  BYTE 8 DUP (?)
+    operand1_type  DWORD ?
+    operand1_name  BYTE 8 DUP (?)
+    operand1_len   DWORD ?
+    operand2_type  DWORD ?
+    operand2_name   BYTE 8 DUP (?)
+    operand2_len    DWORD ?
+Instructionproto ENDS
+EXTERNDEF Instruction:Instructionproto
+EXTERNDEF InstructionEnd:DWORD
+
 ;Function
 FunctionInfoproto STRUCT
     f_name BYTE 8 DUP(?)
@@ -138,3 +153,15 @@ EXTERNDEF SectionAuxSymbolTableCount:DWORD
 EXTERNDEF SectionAuxSymbolTable:SectionAuxSymbolTableproto
 EXTERNDEF FilePath:BYTE
 EXTERNDEF COMPIDSymbolTable:BYTE
+
+;current_byte
+EXTERNDEF current_code_bytes:DWORD
+EXTERNDEF line_bytes:DWORD
+
+;label table
+LabelEntryproto STRUCT
+    label_name BYTE 9 DUP(0)
+    label_offset DWORD ?
+LabelEntryproto ENDS
+EXTERNDEF LabelCount:DWORD
+EXTERNDEF LabelTable:LabelEntryproto
