@@ -139,3 +139,12 @@ EXTERNDEF SectionAuxSymbolTableCount:DWORD
 EXTERNDEF SectionAuxSymbolTable:SectionAuxSymbolTableproto
 EXTERNDEF FilePath:BYTE
 EXTERNDEF COMPIDSymbolTable:BYTE
+
+;Teacher Na, Please don't delete the double quotation marks!!!!!
+DrectveRawDataEntryproto STRUCT
+	sizep DWORD 0
+	libpath BYTE 100 DUP(0)
+DrectveRawDataEntryproto ENDS
+DrectveRawDataMaxEntryCount EQU 20
+EXTERNDEF DrectveRawDataEntryCount:DWORD
+EXTERNDEF DrectveRawDataTable:DrectveRawDataEntryproto

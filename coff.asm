@@ -12,6 +12,9 @@ includelib masm32.lib
 	filename BYTE ".file",0
 	atemp DWORD ?
 	allFileOffset DWORD 0
+	drectvelib BYTE "-defaultlib:",0
+	drectveentry BYTE "-entry:main@0 ",0
+	blankspace BYTE " ",0
 .code
 ;;-------------------------------
 ;; transform the structure to coff
@@ -340,7 +343,7 @@ GetStringLength PROC FAR C USES eax ecx edx esi edi,mstr:DWORD
 	ret
 GetStringLength ENDP
 
-RegPush PROC
+RegPush PROC FAR C
 	push eax
 	push ebx
 	push ecx
@@ -349,7 +352,7 @@ RegPush PROC
 	push edi
 RegPush ENDP
 
-RegPop PROC
+RegPop PROC FAR C
 	pop edi
 	pop esi
 	pop edx
@@ -427,12 +430,12 @@ RelocationTableFini ENDP
 ;----------------------------------------------
 ; Finish all file offset
 ; Remain:
-;	test
+;	no
 ;----------------------------------------------
 AllOffsetFini PROC USES eax ebx ecx edx esi edi
 	mov eax,40
-	mov ebx,4
-	mul eax
+	mov ebx,SectionCount
+	mul ebx
 	add eax,20
 	mov allFileOffset,eax
 	;section ptr
@@ -477,15 +480,17 @@ sectionoffsetloop:
 	pop ecx
 	dec ecx
 	jne sectionoffsetloop
-
 	;.data header and .drectve header
 	movzx eax,SectionHeader[0].s_nreloc
 	mov ebx,10
 	mul ebx
 	add eax,SectionHeader[0].s_relptr
 	mov SectionHeader[TYPE SectionHeaderproto].s_scnptr,eax
+	mov SectionHeader[TYPE SectionHeaderproto].s_flags,0c0300040h
 	add eax,SectionHeader[TYPE SectionHeaderproto].s_size
 	mov SectionHeader[3*(TYPE SectionHeaderproto)].s_scnptr,eax
+	mov SectionHeader[2*(TYPE SectionHeaderproto)].s_flags,0c0300040h
+	mov SectionHeader[3*(TYPE SectionHeaderproto)].s_flags,00000a00h
 	;file symboltable offset
 	mov eax,SectionHeader[3*(TYPE SectionHeaderproto)].s_scnptr
 	add eax,SectionHeader[3*(TYPE SectionHeaderproto)].s_size
@@ -498,4 +503,34 @@ sectionoffsetloop:
 	ret
 AllOffsetFini ENDP
 
+DrectveFini PROC USES eax ebx ecx edx esi edi
+	cld
+	lea edi,drectve_rawdata
+	mov ecx,DrectveRawDataEntryCount
+drectvestrcpy:
+	push ecx
+	neg ecx
+	add ecx,DrectveRawDataEntryCount
+	invoke idxTransform,ecx,TYPE DrectveRawDataEntryproto
+	;copy
+	lea esi,drectvelib
+	mov ecx,LENGTHOF drectvelib
+	dec ecx
+	rep movsb
+	lea esi,DrectveRawDataTable[eax].libpath
+	mov ecx,DrectveRawDataTable[eax].sizep
+	rep movsb
+	lea esi,blankspace
+	mov ecx,1
+	rep movsb
+	
+	pop ecx
+	dec ecx
+	jne drectvestrcpy
+	lea esi,drectveentry
+	mov ecx,LENGTHOF drectveentry
+	dec ecx
+	rep movsb
+	ret
+DrectveFini ENDP
 END

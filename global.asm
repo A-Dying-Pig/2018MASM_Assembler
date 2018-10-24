@@ -12,7 +12,7 @@ SectionHeader SectionHeaderproto SectionCount DUP(<>)
 ;section raw-data,fixed size
 text_rawdata BYTE 1000 DUP(?)
 data_rawdata BYTE 1000 DUP(?)
-drectve_rawdata BYTE 100 DUP(?)
+drectve_rawdata BYTE 500 DUP(?)
 STACK_rawdata BYTE 100 DUP(?)
 
 
@@ -55,4 +55,8 @@ SectionAuxSymbolTable SectionAuxSymbolTableproto SectionAuxSymbolTableMaxCount D
 
 FilePath BYTE 255 DUP(0)
 COMPIDSymbolTable BYTE 40h,63h,6fh,6dh,70h,2eh,69h,64h,0fch,20h,12h,00h,0ffh,0ffh,00h,00h,03h,00h
+
+
+DrectveRawDataEntryCount DWORD 0
+DrectveRawDataTable DrectveRawDataEntryproto DrectveRawDataMaxEntryCount DUP(<>)
 END
