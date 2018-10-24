@@ -98,7 +98,11 @@ enumerateDWORDType BYTE "DWORD",0,0
 enumerateInstruction BYTE "ADD",0,"SUB",0,"MOV",0,"AND",0,"OR",0,"XOR",0,"CMP",0,"PUSH",0,"POP",0,"NEG",0,"XCHG",0,"LOOP",0,"CALL",0,"JMP",0,0
 
 .code
-; ====================================== utilities for the code ================================
+; ==================================================================================================
+
+; ============================ utilities for the code ==============================================
+
+; ==================================================================================================
 ;-----------------------------------------
 str_len PROC USES edi, strp: PTR BYTE
 ;
@@ -182,16 +186,55 @@ is_space PROC, sour: BYTE
 	ret
 is_space ENDP
 
+; ------------------------------------------------------
+is_delimiter PROC,
+	sour: BYTE
+	splitSpace: DWORD, ; 是否切割空格，水平制表符
+	other_deli: BYTE ; 输入其他分隔符，为0代表无其他分隔符
+; judge is the input 
 ; -------------------------------------------------------
-split_string PROC USES ebx ecx edx esi
+	cmp sour, 0
+	je is_delimiter_zero ; judge if zero
+
+	cmp splitSpace, 0
+	je is_delimiter_no_space ;judge if no need for space
+	cmp sour, 32
+	je is_delimiter_true
+	cmp sour, 9
+	je is_delimiter_true
+
+	is_delimiter_other:
+	cmp other_deli, 0
+	je is_delimiter_con
+	mov al, other_deli
+	cmp sour, al
+	je is_delimiter_true
+
+	is_delimiter_con:
+	mov eax, 0
+	ret
+	is_delimiter_true:
+	mov eax, 1
+	ret
+	is_delimiter_zero:
+	mov eax, 2
+	ret
+is_delimiter ENDP
+
+; -------------------------------------------------------
+split_string PROC USES ebx ecx edx esi,
+	beginPos: PTR BYTE,
+	maxCut: DWORD, ; 获取的最大段数，mul 4， 至少为4
+	splitSpace: DWORD, ; 是否切割空格，水平制表符
+	other_deli: BYTE ; 输入其他分隔符，为0代表无其他分隔符
 ;
-; split the FileLine string
+; split the FileLine string, input the maxCut number (mul 4 must)
 ; store the result in the splitList, return the count(mul 4)
 ; -------------------------------------------------------
 	LOCAL splitStatus: DWORD
 	mov ebx, 0 ;splitCount
 	mov splitStatus, 0
-	mov esi, OFFSET FileLine
+	mov esi, beginPos
 
 	split_string_OUTERLOOP:
 		mov al, [esi]
@@ -202,7 +245,7 @@ split_string PROC USES ebx ecx edx esi
 		je split_string_FindEnd
 		
 		split_string_FindBegin:
-		INVOKE is_space, [esi]
+		INVOKE is_delimiter, [esi], splitSpace, other_deli
 		cmp eax, 0
 		je split_string_ChangeToEnd
 		inc esi
@@ -212,11 +255,13 @@ split_string PROC USES ebx ecx edx esi
 		mov splitList[ebx], esi
 		add ebx, 4
 		inc esi
+		cmp ebx, maxCut
+		jge split_string_END
 		mov splitStatus, 1
 		jmp split_string_OUTERLOOP
 
 		split_string_FindEnd:
-		INVOKE is_space, [esi]
+		INVOKE is_delimiter, [esi], splitSpace, other_deli
 		cmp eax, 1
 		je split_string_ChangeToBegin
 		inc esi
@@ -233,6 +278,175 @@ split_string PROC USES ebx ecx edx esi
 	mov eax, ebx
 	ret
 split_string ENDP
+
+; -------------------------------------------------------
+strip_string PROC USES ebx ecx edx esi,
+	beginPos: PTR BYTE
+	stripSpace: DWORD, ; 是否切割空格，水平制表符
+	other_deli: BYTE ; 输入其他分隔符，为0代表无其他分隔符
+; strip each side
+; -------------------------------------------------------
+	mov esi, beginPos
+	mov ebx, beginPos
+
+	strip_string_findBegin:
+	INVOKE is_delimiter, [esi], stripSpace, other_deli
+	cmp eax, 1
+	jne strip_string_getBegin
+	inc esi
+	jmp strip_string_findBegin
+
+	strip_string_getBegin:
+	mov ebx, esi ; store the begining in ebx
+
+	strip_string_findEnd:
+	mov al, [esi]
+	cmp al ,0
+	je strip_string_END
+	
+	INVOKE is_delimiter, [esi], stripSpace, other_deli
+	cmp eax, 1
+	je strip_string_getEnd
+	inc esi
+	jmp strip_string_findEnd
+
+	strip_string_getEnd:
+	mov al, 0
+	mov [esi], al
+
+	strip_string_END:
+	mov eax, ebx
+	ret
+strip_string ENDP
+
+; -------------------------------------------------------
+starts_with PROC USES ebx ecx edx esi,
+	beginPos: PTR BYTE,
+	head: BYTE
+;
+; judge if a string start with some byte
+; -------------------------------------------------------
+	mov edx, beginPos
+	mov al, [edx]
+	cmp al, head
+	je starts_with_true
+
+	mov eax, 0
+	ret
+	starts_with_true:
+	mov eax, 1
+	ret
+starts_with ENDP
+
+
+; ---------------------------------------------------------
+ends_with PROC USES	ebx ecx edx esi,
+	beginPos: PTR BYTE,
+	tail: BYTE
+;
+; judge if a string ends with some byte
+; ---------------------------------------------------------
+	mov edx, beginPos
+	INVOKE str_len, edx
+	cmp eax, 0
+	je ends_with_false
+
+	dec eax
+	add edx, eax
+	cmp BYTE PTR [edx], tail
+	jne ends_with_false
+	mov eax, 1
+	ret
+
+	ends_with_false:
+	mov eax, 0
+	ret
+ends_with ENDP
+
+; ----------------------------------------------------------
+is_digit PROC USES ebx ecx edx esi,
+	beginPos: PTR BYTE
+;
+; judge if a string is all digit
+; ----------------------------------------------------------
+	mov edx, beginPos
+	cmp BYTE PTR [edx], 0
+	je is_digit_False
+
+	is_digit_LOOP:
+	cmp BYTE PTR [edx], 0
+	je is_digit_True
+	
+	cmp BYTE PTR [edx], 48
+	jl is_digit_False
+	cmp BYTE PTR [edx], 57
+	jg is_digit_False
+	inc edx
+	jmp is_digit_LOOP
+
+	is_digit_False:
+	mov eax, 0
+	ret
+
+	is_digit_True:
+	mov eax, 1
+	ret
+is_digit ENDP
+
+
+
+; ; -------------------------------------------------------
+; split_string PROC USES ebx ecx edx esi,
+; 	maxCut: DWORD, other_deli: BYTE
+; ;
+; ; split the FileLine string, input the maxCut number (mul 4 must)
+; ; store the result in the splitList, return the count(mul 4)
+; ; -------------------------------------------------------
+; 	LOCAL splitStatus: DWORD
+; 	mov ebx, 0 ;splitCount
+; 	mov splitStatus, 0
+; 	mov esi, OFFSET FileLine
+
+; 	split_string_OUTERLOOP:
+; 		mov al, [esi]
+; 		cmp al, 0; L[i] != 0
+; 		je split_string_END
+
+; 		cmp splitStatus, 1
+; 		je split_string_FindEnd
+		
+; 		split_string_FindBegin:
+; 		INVOKE is_space, [esi]
+; 		cmp eax, 0
+; 		je split_string_ChangeToEnd
+; 		inc esi
+; 		jmp split_string_OUTERLOOP
+		
+; 		split_string_ChangeToEnd:
+; 		mov splitList[ebx], esi
+; 		add ebx, 4
+; 		inc esi
+; 		mov splitStatus, 1
+; 		jmp split_string_OUTERLOOP
+
+; 		split_string_FindEnd:
+; 		INVOKE is_space, [esi]
+; 		cmp eax, 1
+; 		je split_string_ChangeToBegin
+; 		inc esi
+; 		jmp split_string_OUTERLOOP
+
+; 		split_string_ChangeToBegin:
+; 		mov al, 0
+; 		mov [esi], al
+; 		inc esi
+; 		mov splitStatus, 0
+; 		jmp split_string_OUTERLOOP
+
+; 	split_string_END:
+; 	mov eax, ebx
+; 	ret
+; split_string ENDP
 
 ;---------------------------------------------------------
 inEnumerate PROC USES ebx ecx edx esi,
@@ -507,14 +721,15 @@ ParseDataDec PROC USES eax ebx ecx edx esi
 
 	ParseDataDec_BYTE:
 	add dataOffset, 1
+	;--------------------------------- Init
 	jmp ParseDataDec_Con2
 	ParseDataDec_DWORD:
-	add dataOffset, 8
+	add dataOffset, 4
 	jmp ParseDataDec_Con2
 
 	ParseDataDec_Con2:
 
-	;--------------------------------- Init
+	; current work: add to .data section
 	
 	ret
 	ParseDataError:
