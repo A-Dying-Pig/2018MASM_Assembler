@@ -571,8 +571,8 @@ L_v_in_position:
 
 L_function:
 	;FUNCTION SYMBOL TABLE
-	mov edi,offset FunctionSymbolTable
-	mov ecx,FunctionCount
+	mov edi,offset CalledFunctionSymbolTable
+	mov ecx,CalledFunctionSymbolEntryCount
 	cmp ecx,0
 	je L1
 L_f:
@@ -595,7 +595,7 @@ L_f_cmp_str:
 	jmp L1 
 L_f_pair:
 	pop ecx
-	mov eax,FunctionCount
+	mov eax,CalledFunctionSymbolEntryCount
 	sub eax,ecx
 	push eax
 	mov ecx,RelocationCount
@@ -1726,8 +1726,8 @@ main PROC
 	mov byte ptr [edi],0
 
 	;function symbol table added
-	add FunctionCount,1
-	mov edi,offset FunctionSymbolTable
+	add CalledFunctionSymbolEntryCount,1
+	mov edi,offset CalledFunctionSymbolTable
 	mov byte ptr [edi],"f"
 	inc edi
 	mov byte ptr [edi],"u"
@@ -1744,7 +1744,7 @@ main PROC
 	inc edi
 	mov byte ptr [edi],0
 	inc edi
-	add FunctionCount,1
+	add CalledFunctionSymbolEntryCount,1
 	add edi,20
 	mov byte ptr [edi],"f"
 	inc edi
@@ -1910,7 +1910,7 @@ main PROC
 	inc edi
 	mov byte ptr [edi],"n"
 	inc edi
-	mov byte ptr [edi],"3"
+	mov byte ptr [edi],"4"
 	inc edi
 	call code_translation
 

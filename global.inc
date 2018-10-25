@@ -2,6 +2,7 @@ SectionCount EQU 4
 GlobalVMaxCount EQU 20
 FunctionMaxCount EQU 20
 OtherMaxCount EQU 2
+CalledFunctionMazCount EQU 50
 EXTERNDEF GlobalVCount:DWORD
 EXTERNDEF FunctionCount:DWORD
 EXTERNDEF OtherCount:DWORD
@@ -71,6 +72,8 @@ EXTERNDEF SectionSymbolTable:SymbolEntryproto
 EXTERNDEF GlobalvSymbolTable:SymbolEntryproto
 EXTERNDEF FunctionSymbolTable:SymbolEntryproto
 EXTERNDEF OtherSymbolTable:SymbolEntryproto
+EXTERNDEF CalledFunctionSymbolTable:SymbolEntryproto
+EXTERNDEF CalledFunctionSymbolEntryCount:DWORD
 
 ;symbol aux
 SymbolauxEntryproto STRUCT
