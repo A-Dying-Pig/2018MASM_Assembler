@@ -86,6 +86,7 @@ FileLine BYTE 128 DUP(0)
 
 ; ====================================== program relative ======================================
 NewLine BYTE 13,10,0
+FileEndFlag DWORD 0
 
 ; ====================================== parser relative =======================================
 splitListSize = 10
@@ -94,7 +95,7 @@ dataOffset DWORD 0
 whichSection DWORD 0 ; 1 for data, 2 for code
 
 processed_proc BYTE 100 DUP (0)
-LineNumCount DWORD 1
+;LineNumCount DWORD 1
 
 ; ====================================== enumerate ============================================
 
@@ -114,8 +115,8 @@ enumerateRet BYTE "RET",0,0
 
 enumerateReg BYTE "EAX",0,"EBX",0,"ECX",0,"EDX",0,"ESI",0,"EDI",0,"ESP",0,"EBP",0,"EAX",0,0
 
-enumerateCode BYTE ".code",0
-enumerateData BYTe ".data",0
+enumerateCode BYTE ".code",0,0
+enumerateData BYTE ".data",0,0
 
 .code
 ; ==================================================================================================
@@ -258,7 +259,7 @@ to_upper ENDP
 
 ; ------------------------------------------------------
 is_delimiter PROC,
-	sour: BYTE
+	sour: BYTE,
 	splitSpace: DWORD, ; 是否切割空格，水平制表符
 	other_deli: BYTE ; 输入其他分隔符，为0代表无其他分隔符
 ; judge is the input 
@@ -267,7 +268,7 @@ is_delimiter PROC,
 	je is_delimiter_zero ; judge if zero
 
 	cmp splitSpace, 0
-	je is_delimiter_no_space ;judge if no need for space
+	je is_delimiter_other ;judge if no need for space
 	cmp sour, 32
 	je is_delimiter_true
 	cmp sour, 9
@@ -294,7 +295,7 @@ is_delimiter ENDP
 ; -------------------------------------------------------
 split_string PROC USES ebx ecx edx esi,
 	beginPos: PTR BYTE,
-	maxCut: DWORD, ; 获取的最大段数，mul 4， 至少为4
+	maxCut: DWORD, ; 获取的最大段数，mul 4， 至少为4,输入0代表不限制
 	splitSpace: DWORD, ; 是否切割空格，水平制表符
 	other_deli: BYTE ; 输入其他分隔符，为0代表无其他分隔符
 ;
@@ -305,12 +306,19 @@ split_string PROC USES ebx ecx edx esi,
 	mov ebx, 0 ;splitCount
 	mov splitStatus, 0
 	mov esi, beginPos
+	
+	cmp maxCut, 0
+	jne split_string_con
+	mov maxCut, 8192
+
+	split_string_con:
 
 	mov ecx, splitListSize
 	split_string_CLEAR:
 	mov DWORD PTR splitList[ebx], 0
 	add ebx, 4
-	loop splitListSize
+	loop split_string_CLEAR
+	mov ebx, 0 ;splitCount
 
 	split_string_OUTERLOOP:
 		mov al, [esi]
@@ -357,7 +365,7 @@ split_string ENDP
 
 ; -------------------------------------------------------
 strip_string PROC USES ebx ecx edx esi,
-	beginPos: PTR BYTE
+	beginPos: PTR BYTE,
 	stripSpace: DWORD, ; 是否切割空格，水平制表符
 	other_deli: BYTE ; 输入其他分隔符，为0代表无其他分隔符
 ; strip each side
@@ -429,7 +437,8 @@ ends_with PROC USES	ebx ecx edx esi,
 
 	dec eax
 	add edx, eax
-	cmp BYTE PTR [edx], tail
+	mov cl, tail
+	cmp BYTE PTR [edx], cl
 	jne ends_with_false
 	mov eax, 1
 	ret
@@ -616,7 +625,7 @@ pushGlobalV ENDP
 
 ; -------------------------------------------------------------
 pushLabel PROC USES eax ebx ecx edx,
-	l_name: PTR BYTE
+	strp: PTR BYTE
 ;
 ; push a string to label table, including own func and label
 ; -------------------------------------------------------------
@@ -647,7 +656,9 @@ pushFuncLabel PROC USES eax ebx ecx edx,
 
 	mov DWORD PTR [edx], 0
 	add edx, 4
-	mov DWORD PTR [edx], off
+
+	mov ecx, off
+	mov DWORD PTR [edx], ecx
 	inc LabelCount
 	ret
 pushFuncLabel ENDP
@@ -668,7 +679,7 @@ isMyProcedure ENDP
 ; ========================================== find in tables =========================================
 
 ; -----------------------------------------------------------
-findStringTable PROC USES ebx, edx,
+findStringTable PROC USES ebx edx,
 	strp: PTR BYTE
 ;
 ; find the string in the table, return the pos of begin, if 0 -> no found
@@ -677,9 +688,9 @@ findStringTable PROC USES ebx, edx,
 	mov edx, 4
 
 	findStr_Loop:
-	INVOKE str_cmp, StringTable[edx], strp
+	INVOKE str_cmp, ADDR StringTable[edx], strp
 	je findStr_END
-	INVOKE str_len, StringTable[edx]
+	INVOKE str_len, ADDR StringTable[edx]
 	add edx, eax
 	cmp edx, ebx
 	je findStr_NO
@@ -758,6 +769,7 @@ ReadLine PROC USES ebx ecx edx esi
 	LOCAL readCount: DWORD
 	mov esi, OFFSET FileLine
 	mov ebx, 0
+
 	ReadLine_LOOP:
 	INVOKE ReadFile, FileHandle, esi, 1, ADDR readCount, 0
 
@@ -768,15 +780,19 @@ ReadLine PROC USES ebx ecx edx esi
 	cmp al, 13
 	je ReadLine_LOOP
 	cmp al, 10
-	je ReadLine_END
-	; cmp eax, 13
-	; je ReadLine_END
+	je ReadLine_ENDLine
 
 	inc esi
 	inc ebx
 	jmp ReadLine_LOOP
 
 	ReadLine_END:
+	mov FileEndFlag, 1
+	mov al, 0
+	mov [esi], al
+	mov eax, ebx
+	ret
+	ReadLine_ENDLine:
 	mov al, 0
 	mov [esi], al
 	mov eax, ebx
@@ -786,7 +802,7 @@ ReadLine ENDP
 ; ========================================= Parser PROC ============================================
 
 ; -----------------------------------------------------
-ParseByteDec PROC USES eax ebx ecx edx esi edi
+ParseByteDec PROC USES eax ebx ecx edx esi edi,
 	initValStr: PTR BYTE
 ;	NOT supported
 ; parse a string of vars of 8 bit
@@ -796,7 +812,7 @@ ParseByteDec PROC USES eax ebx ecx edx esi edi
 ParseByteDec ENDP
 
 ; -----------------------------------------------------
-ParseDwordDec PROC USES eax ebx ecx edx esi edi
+ParseDwordDec PROC USES eax ebx ecx edx esi edi,
 	initValStr: PTR BYTE
 ;
 ; parse a string of vars of 32 bit
@@ -804,10 +820,10 @@ ParseDwordDec PROC USES eax ebx ecx edx esi edi
 	LOCAL arrayCount:DWORD
 	mov esi, initValStr
 	INVOKE starts_with, esi, 44
-	cmp eax, 0
+	cmp eax, 1
 	je ParseDwordError
 
-	INVOKE split_string, ecx, 0, 0, 44
+	INVOKE split_string, esi, 0, 0, 44
 	mov arrayCount, eax
 	mov ebx, 0
 
@@ -903,40 +919,6 @@ ParseDataDec PROC USES eax ebx ecx edx esi
 ParseDataDec ENDP
 
 ; -------------------------------------------------
-ParseOneOpIns PROC USES eax ebx ecx edx esi,
-	Operand: PTR BYTE
-;
-; parser a one op instruction
-; --------------------------------------------------
-	INVOKE split_string, Operand, 0, 1, 0
-	cmp eax, 4
-	jne ParseOneOpIns_error
-
-	mov edx, splitList[0]
-	INVOKE strip_string, edx, 1, 0
-	mov edx, eax
-
-	INVOKE AddOper1, edx
-	cmp Instruction.operand1_type, 1
-	je ParseOneOpIns_reg
-	cmp Instruction.operand1_type, 2
-	je ParseOneOpIns_mem
-
-	jmp ParseOneOpIns_error
-
-	ParseOneOpIns_reg:
-	mov Instruction.operation_type, 5
-	ret
-	ParseOneOpIns_mem:
-	mov Instruction.operation_type, 6
-	ret
-
-	ParseOneOpIns_error:
-	INVOKE StdOut, OFFET msg_grammar_err
-	INVOKE ExitProcess, 0
-ParseOneOpIns ENDP
-
-; -------------------------------------------------
 ; add opers to Instruction
 AddOper1 PROC USES eax ebx ecx edx esi,
 	oper: PTR BYTE
@@ -945,7 +927,7 @@ AddOper1 PROC USES eax ebx ecx edx esi,
 	INVOKE is_digit, edx
 	cmp eax, 1
 	je AddOper1_Imm
-	INVOKE inEnumerate, edx, enumerateReg
+	INVOKE inEnumerate, edx, ADDR enumerateReg
 	cmp eax, 1
 	je AddOper1_Reg
 	jmp AddOper1_Mem
@@ -953,7 +935,7 @@ AddOper1 PROC USES eax ebx ecx edx esi,
 	AddOper1_Imm:
 		mov Instruction.operand1_type, 0
 		INVOKE atodw, edx
-		mov Instruction.operand1_name, eax
+		mov DWORD PTR Instruction.operand1_name, eax
 		ret
 
 	AddOper1_Reg:
@@ -986,7 +968,7 @@ AddOper1 PROC USES eax ebx ecx edx esi,
 		ret
 
 	AddOper1_error:
-	INVOKE StdOut, OFFET msg_grammar_err
+	INVOKE StdOut, OFFSET msg_grammar_err
 	INVOKE ExitProcess, 0
 AddOper1 ENDP
 ; 
@@ -997,7 +979,7 @@ AddOper2 PROC USES eax ebx ecx edx esi,
 	INVOKE is_digit, edx
 	cmp eax, 1
 	je AddOper2_Imm
-	INVOKE inEnumerate, edx, enumerateReg
+	INVOKE inEnumerate, edx, ADDR enumerateReg
 	cmp eax, 1
 	je AddOper2_Reg
 	jmp AddOper2_Mem
@@ -1005,7 +987,7 @@ AddOper2 PROC USES eax ebx ecx edx esi,
 	AddOper2_Imm:
 		mov Instruction.operand2_type, 0
 		INVOKE atodw, edx
-		mov Instruction.operand2_name, eax
+		mov DWORD PTR Instruction.operand2_name, eax
 		ret
 
 	AddOper2_Reg:
@@ -1038,10 +1020,44 @@ AddOper2 PROC USES eax ebx ecx edx esi,
 		ret
 
 	AddOper2_error:
-	INVOKE StdOut, OFFET msg_grammar_err
+	INVOKE StdOut, OFFSET msg_grammar_err
 	INVOKE ExitProcess, 0
 AddOper2 ENDP
 ; --------------------------------------------------
+
+; -------------------------------------------------
+ParseOneOpIns PROC USES eax ebx ecx edx esi,
+	Operand: PTR BYTE
+;
+; parser a one op instruction
+; --------------------------------------------------
+	INVOKE split_string, Operand, 0, 1, 0
+	cmp eax, 4
+	jne ParseOneOpIns_error
+
+	mov edx, splitList[0]
+	INVOKE strip_string, edx, 1, 0
+	mov edx, eax
+
+	INVOKE AddOper1, edx
+	cmp Instruction.operand1_type, 1
+	je ParseOneOpIns_reg
+	cmp Instruction.operand1_type, 2
+	je ParseOneOpIns_mem
+
+	jmp ParseOneOpIns_error
+
+	ParseOneOpIns_reg:
+	mov Instruction.operation_type, 5
+	ret
+	ParseOneOpIns_mem:
+	mov Instruction.operation_type, 6
+	ret
+
+	ParseOneOpIns_error:
+	INVOKE StdOut, OFFSET msg_grammar_err
+	INVOKE ExitProcess, 0
+ParseOneOpIns ENDP
 
 ; -------------------------------------------------
 ParseTwoOpIns PROC USES eax ebx ecx edx esi,
@@ -1060,7 +1076,7 @@ ParseTwoOpIns PROC USES eax ebx ecx edx esi,
 	INVOKE strip_string, edx, 1, 0
 	mov edx, eax
 
-	INVOKE AddOper1, edx
+	INVOKE AddOper1, ebx
 	INVOKE AddOper2, edx
 	cmp Instruction.operand1_type, 1
 	je ParseTwoOpIns_reg
@@ -1149,6 +1165,7 @@ AT_PROC PROC USES eax ebx,
 	inc ebx
 	mov BYTE PTR [ebx], 0
 	ret
+AT_PROC ENDP
 
 ParseBeginProc PROC USES eax ebx ecx edx esi,
 	func_name: PTR BYTE
@@ -1160,14 +1177,15 @@ ParseBeginProc PROC USES eax ebx ecx edx esi,
 
 	ParseBeginProc_direct:
 	mov Instruction.operand1_len, eax
-	INVOKE str_copy, Instruction.operand1_name, ADDR processed_proc
+	INVOKE str_copy, ADDR Instruction.operand1_name, ADDR processed_proc
 	INVOKE pushLabel, ADDR processed_proc
 	mov eax, TYPE FunctionInfoTable
 	mov ebx, FunctionInfoCount
 	mul ebx
-	INVOKE str_copy, ADDR processed_proc, ADDR FunctionInfoTable[eax].f_name
+	mov ecx, eax
+	INVOKE str_copy, ADDR processed_proc, ADDR FunctionInfoTable[ecx].f_name
 	mov ebx, LineNumCount
-	mov FunctionInfoTable[eax].f_bf, ebx
+	mov FunctionInfoTable[ecx].f_bf, ebx
 	ret
 
 	ParseBeginProc_toolong:
@@ -1175,10 +1193,10 @@ ParseBeginProc PROC USES eax ebx ecx edx esi,
 	mov ebx, FunctionInfoCount
 	mul ebx
 	mov ecx, eax
-	INVOKE pushStringTable, processed_proc
+	INVOKE pushStringTable, ADDR processed_proc
 
-	mov ebx, FunctionInfoTable[ecx].f_name
-	mov edx, Instruction.operand1_name
+	lea ebx, FunctionInfoTable[ecx].f_name
+	lea edx, Instruction.operand1_name
 
 	mov DWORD PTR [ebx], 0
 	mov DWORD PTR [edx], 0
@@ -1245,7 +1263,7 @@ ParseCall PROC USES eax ebx ecx edx esi,
 	ParseCall_notfound: ;长度小于8，在labeltable中没有找到，下面在Called中找
 
 		mov ebx, 0
-		mov ecx, CalledFunctionCount
+		mov ecx, CalledFunctionSymbolEntryCount
 		mov eax, TYPE CalledFunctionSymbolTable
 		mul ecx
 		mov ecx, eax ;计算好总大小放在ecx
@@ -1260,14 +1278,14 @@ ParseCall PROC USES eax ebx ecx edx esi,
 
 		ParseCall_found_called: ;长度小于8的库函数，并且在called中找到，直接返回即可
 		mov Instruction.operand1_len, edx
-		INVOKE str_copy, Instruction.operand1_name, ADDR processed_proc
+		INVOKE str_copy, ADDR Instruction.operand1_name, ADDR processed_proc
 		ret
 
 		ParseCall_notfound_called: ;长度小于8的库函数，并且在called中没有找到，需要添加
 		mov Instruction.operand1_len, edx
-		INVOKE str_copy, Instruction.operand1_name, ADDR processed_proc
+		INVOKE str_copy, ADDR Instruction.operand1_name, ADDR processed_proc
 		INVOKE str_copy, ADDR CalledFunctionSymbolTable[ebx].n_name, ADDR processed_proc
-		inc CalledFunctionCount ;成功 +1
+		inc CalledFunctionSymbolEntryCount ;成功 +1
 		ret
 
 	ParseCall_toolong:
@@ -1288,12 +1306,12 @@ ParseCall PROC USES eax ebx ecx edx esi,
 	INVOKE pushStringTable, ADDR processed_proc
 	mov ecx, eax ; 先保存在ecx中
 
-	mov ebx, OFFSET CalledFunctionCount
+	mov ebx, CalledFunctionSymbolEntryCount
 	mov	eax, TYPE CalledFunctionSymbolTable
 	mul ebx ;计算新插入的位置
 
-	mov esi, OFFSET Instruction.operand1_name ;把要放指令的位置放在esi中
-	mov edx, CalledFunctionSymbolTable[eax].n_name;新插入的位置交给edx
+	lea esi, OFFSET Instruction.operand1_name ;把要放指令的位置放在esi中
+	lea edx, CalledFunctionSymbolTable[eax].n_name;新插入的位置交给edx
 
 	mov DWORD PTR [edx], 0
 	mov DWORD PTR [esi], 0
@@ -1301,11 +1319,11 @@ ParseCall PROC USES eax ebx ecx edx esi,
 	add esi, 4
 	mov DWORD PTR [edx], ecx ;插入进去
 	mov DWORD PTR [esi], 0
-	inc CalledFunctionCount ;成功 +1
+	inc CalledFunctionSymbolEntryCount ;成功 +1
 	ret
 
 	ParseCall_error:
-	INVOKE StdOut, OFFET msg_grammar_err
+	INVOKE StdOut, OFFSET msg_grammar_err
 	INVOKE ExitProcess, 0
 ParseCall ENDP
 
@@ -1398,7 +1416,6 @@ ParseTextStr PROC USES eax ebx ecx edx esi
 	INVOKE ParseJump, edx
 	ret
 
-	----------------------TODO:------------------------------------------
 	ParseTextStr_call:
 	INVOKE str_len, ebx
 	mov Instruction.operation_len, eax
@@ -1407,10 +1424,19 @@ ParseTextStr PROC USES eax ebx ecx edx esi
 	ret
 
 	ParseTextStr_funcbegin:
+	INVOKE str_len, splitList[0]
+	mov Instruction.operation_len, eax
+	INVOKE str_copy, splitList[0], ADDR Instruction.operation_str
+	INVOKE ParseBeginProc, ebx
 
+	ret
 	ParseTextStr_funcend:
+	INVOKE str_len, splitList[0]
+	mov Instruction.operation_len, eax
+	INVOKE str_copy, splitList[0], ADDR Instruction.operation_str
+	INVOKE ParseEndProc, ebx
+	ret
 
-	---------------------------------------------------------------------
 	ParseTextStr_ret:
 	INVOKE str_len, ebx
 	mov Instruction.operation_len, eax
@@ -1438,10 +1464,23 @@ MainParser PROC USES eax ebx ecx edx esi edi
 
 	MainParser_Parsering:
 	INVOKE ReadLine
-
+	
 	; judge if end
+	cmp FileEndFlag, 1
+	je MainParser_FileEnd ;目前：文件最后一行必须是空行
+	inc LineNumCount
+	
+	;如果是空行，则继续
 	cmp BYTE PTR [FileLine], 0
-	je MainParser_FileEnd
+	je MainParser_Parsering
+
+	;首先判断下方是不是code data段的声明
+	INVOKE inEnumerate, edx, ADDR enumerateCode
+	cmp eax, 1
+	je MainParser_code
+	INVOKE inEnumerate, edx, ADDR enumerateData
+	cmp eax, 1
+	je MainParser_data
 
 	; judge if data or code
 	cmp whichSection, 1
@@ -1453,26 +1492,23 @@ MainParser PROC USES eax ebx ecx edx esi edi
 	INVOKE split_string, ADDR FileLine, 8, 1, 0
 
 	mov edx, splitList[0]
-	INVOKE inEnumerate, edx, OFFSET enumerateInclude
+	INVOKE inEnumerate, edx, ADDR enumerateInclude
 	cmp eax, 1
 	je MainParser_include
 	
-	INVOKE inEnumerate, edx, OFFSET enumerateIncludeLib
+	INVOKE inEnumerate, edx, ADDR enumerateIncludeLib
 	cmp eax, 1
 	je MainParser_includelib
 
-	INVOKE str_cmp, edx, enumerateCode
-	je MainParser_code
-	INVOKe str_cmp, edx, enumerateData
-	je MainParser_data
-
-	jmp MainParser_Parsering
+	jmp MainParser_error
 
 	MainParser_include:
-	-------------------------------Not implemented----------------------
+	;-------------------------------Not implemented----------------------
+	jmp MainParser_Parsering
 
 	MainParser_includelib:
-	-------------------------------Not implemented----------------------
+	;-------------------------------Not implemented----------------------
+	jmp MainParser_Parsering
 
 	MainParser_code:
 	mov whichSection, 2
@@ -1494,55 +1530,17 @@ MainParser PROC USES eax ebx ecx edx esi edi
 
 	MainParser_FileEnd:
 	ret
+	MainParser_error:
+	INVOKE StdOut, OFFSET msg_grammar_err
+	INVOKE ExitProcess, 0
 MainParser ENDP
 
 main PROC
-
+	INVOKE MainParser
 	;INVOKE ReadLine
 	;INVOKE ParseDataDec
 	
-	;INVOKE ReadLine
-	;INVOKE StdOut, OFFSET FileLine
-	;mov ebx, eax
-	;INVOKE StdOut, OFFSET NewLine
-	;INVOKE crt_printf, OFFSET util_d, ebx
 	
-	;INVOKE ReadLine
-	;INVOKE StdOut, OFFSET FileLine
-	;mov ebx, eax
-	;INVOKE StdOut, OFFSET NewLine
-	;INVOKE crt_printf, OFFSET util_d, ebx
-
-	;INVOKE ReadLine
-	;INVOKE StdOut, OFFSET FileLine
-	;mov ebx, eax
-	;INVOKE StdOut, OFFSET NewLine
-	;INVOKE crt_printf, OFFSET util_d, ebx
-
-	;INVOKE ReadLine
-	;INVOKE StdOut, OFFSET FileLine
-	;mov ebx, eax
-	;INVOKE StdOut, OFFSET NewLine
-	;INVOKE crt_printf, OFFSET util_d, ebx
-    ;invoke LocalFree, dword ptr [szArglist] ; Free the memory occupied by CommandLineToArgvW
-	; mov eax, 5
-	; mov GlobalvSymbolTable[0].n_value, eax
-	; mov eax, 21
-	; mov GlobalvSymbolTable[1].n_value, eax
-	
-	; mov ebx, GlobalvSymbolTable[0].n_value
-	; pushad
-	; INVOKE crt_printf, OFFSET util_d, ebx
-	; popad
-	; mov ebx, GlobalvSymbolTable[1].n_value
-	; pushad
-	; INVOKE crt_printf, OFFSET util_d, ebx
-	; popad
-	;mov eax, 0
-	;INVOKE crt_printf, OFFSET util_d, eax
-	;INVOKE crt_printf, OFFSET my_name
-	;INVOKE StdOut, OFFSET my_name
-	;INVOKE crt_printf, OFFSET util_d , eax
 	INVOKE ExitProcess, 0
 main ENDP
 

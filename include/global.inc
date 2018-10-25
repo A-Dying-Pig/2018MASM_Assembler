@@ -108,9 +108,9 @@ FunctionInfoproto STRUCT
     f_offset DWORD ?
     f_size DWORD ?
     f_lnof DWORD ?
-    f_bf WORD ?
+    f_bf DWORD ?
     f_lf DWORD ?
-    f_ef WORD ?
+    f_ef DWORD ?
 FunctionInfoproto ENDS
 EXTERNDEF FunctionInfoCount:DWORD
 EXTERNDEF FunctionInfoTable:FunctionInfoproto
