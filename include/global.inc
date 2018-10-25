@@ -6,6 +6,7 @@ CalledFunctionMazCount EQU 50
 EXTERNDEF GlobalVCount:DWORD
 EXTERNDEF FunctionCount:DWORD
 EXTERNDEF OtherCount:DWORD
+EXTERNDEF CalledFunctionSymbolEntryCount:DWORD
 
 ;fileheader
 FileHeaderproto STRUCT
@@ -14,7 +15,7 @@ FileHeaderproto STRUCT
     f_timdat DWORD 0
     f_symptr DWORD 0
     f_nsyms DWORD 0
-    f_opthdr DWORD 0
+    f_opthdr WORD 0
     f_flags WORD 0
 FileHeaderproto ENDS
 EXTERNDEF FileHeader:FileHeaderproto
@@ -74,7 +75,7 @@ EXTERNDEF GlobalvSymbolTable:SymbolEntryproto
 EXTERNDEF FunctionSymbolTable:SymbolEntryproto
 EXTERNDEF OtherSymbolTable:SymbolEntryproto
 EXTERNDEF CalledFunctionSymbolTable:SymbolEntryproto
-EXTERNDEF CalledFunctionSymbolEntryCount:DWORD
+
 
 ;symbol aux
 SymbolauxEntryproto STRUCT

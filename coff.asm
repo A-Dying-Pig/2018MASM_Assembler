@@ -7,6 +7,7 @@ include coff.inc
 
 
 .data
+	zeroBlank BYTE 0
 	bfname BYTE ".bf",0
 	lfname BYTE ".lf",0
 	efname BYTE ".ef",0
@@ -55,6 +56,7 @@ FileHeaderFini PROC USES eax ebx ecx edx esi edi
     mov FileHeader.f_nsyms,ebx
     mov FileHeader.f_opthdr,0
     mov FileHeader.f_flags,0
+	mov eax,TYPE FileHeaderproto
 	ret
 FileHeaderFini ENDP
 
@@ -83,22 +85,32 @@ sectionsymbol:
 	mov ecx,edx
 	mov edx,eax
 	;n_name
+	push ecx
 	cld
 	lea esi,SectionHeader[edx].s_name
 	lea edi,SectionSymbolTable[ecx].n_name
 	mov ecx,8
 	rep movsb
+	pop ecx
 	;value of symbol
 	mov SectionSymbolTable[ecx].n_value,0
 	;section num
+	push edx
+	push ebx
 	mov eax,ecx
+	mov edx,0
+	mov ebx,TYPE SymbolEntryproto
+	div ebx
 	inc eax
 	mov SectionSymbolTable[ecx].n_scnum,ax
+	pop ebx
+	pop edx
 	;symbol type
 	mov SectionSymbolTable[ecx].n_type,0
 	;storage class
 	mov SectionSymbolTable[ecx].n_sclass,3
 	;aux
+	mov SectionSymbolTable[ecx].n_numaux,1
 	mov eax,SectionAuxSymbolTableCount
 	invoke idxTransform,eax,TYPE SectionAuxSymbolTableproto
 	mov ebx,SectionHeader[edx].s_size
@@ -170,7 +182,7 @@ GlobalvSymbolTableFini ENDP
 ;----------------------------------------
 ; finish Function Symbol
 ; Needed:
-;	FunctionInfo completed
+;	FunctionInfo completed, all stmbol table except function symbol
 ; Remain:
 ;	Function Definition Aux:PointerToLineNumber(abandoned)
 ;	test
@@ -218,6 +230,9 @@ functionsymboltable:
 	mov eax,FunctionAuxSymbolTableCount
 	mov ebx,FunctionInfoTable[ecx].f_size
 	mov FunctionAuxSymbolTable[eax].totalSize,ebx
+	sub edx,5
+	mov FunctionAuxSymbolTable[eax].tagIndex,edx
+	add edx,5
 	mov FunctionAuxSymbolTable[eax].pointerToNextFunction,edx
 	inc FunctionAuxSymbolTableCount
 	pop eax
@@ -238,6 +253,11 @@ functionsymboltable:
 	;bf aux
 	push eax
 	mov eax,FunctionbfefAuxSymbolTableCount
+	mov ebx,TYPE FunctionbfefAuxSymbolTableproto
+	push edx
+	mul ebx
+	pop edx
+	mov ebx,0
 	mov bx,FunctionInfoTable[ecx].f_bf
 	mov FunctionbfefAuxSymbolTable[eax].linenumber,bx
 	mov FunctionbfefAuxSymbolTable[eax].pointerToNextFunction,edx
@@ -275,6 +295,10 @@ functionsymboltable:
 	;ef aux
 	push eax
 	mov eax,FunctionbfefAuxSymbolTableCount
+	mov ebx,TYPE FunctionbfefAuxSymbolTableproto
+	push edx
+	mul ebx
+	pop edx
 	mov bx,FunctionInfoTable[ecx].f_ef
 	mov FunctionbfefAuxSymbolTable[eax].linenumber,bx
 	inc FunctionbfefAuxSymbolTableCount
@@ -282,6 +306,17 @@ functionsymboltable:
 	pop ecx
 	dec ecx
 	jne functionsymboltable
+	;change next function pointer to 0
+	mov ecx,FunctionInfoCount
+	dec ecx
+	mov eax,ecx
+	mov edx,TYPE SymbolEntryproto
+	mul edx
+	mov FunctionAuxSymbolTable[eax].pointerToNextFunction,0
+	mov edx,2
+	mul edx
+	mov FunctionbfefAuxSymbolTable[eax].pointerToNextFunction,0
+	
 	ret
 FunctionSymbolTableFini ENDP
 
@@ -405,12 +440,13 @@ CalledFunctionSymbolTableFini PROC
 	je CalledFunctionSymbolTableFiniend
 calledfunctionsymbol:
 	push ecx
+	neg ecx
+	add ecx,CalledFunctionSymbolEntryCount
 	invoke idxTransform,ecx,TYPE SymbolEntryproto
 	mov ecx,eax
 	mov CalledFunctionSymbolTable[ecx].n_type,20h
 	mov CalledFunctionSymbolTable[ecx].n_sclass,2h
 
-	inc CalledFunctionSymbolEntryCount
 	pop ecx
 	dec ecx
 	jne calledfunctionsymbol
@@ -437,6 +473,7 @@ RelocationTableFini PROC USES eax ebx ecx edx esi edi
 	add edx,1;comp
 	add edx,SectionCount;section
 	add edx,SectionAuxSymbolTableCount
+	mov ebx,edx
 	add ebx,CalledFunctionSymbolEntryCount
 	mov ecx,RelocationCount
 reloloop:
@@ -630,10 +667,13 @@ COFFsave PROC USES eax ebx ecx edx esi edi
 	;create file
 	invoke CreateFile,addr coffname,GENERIC_WRITE , FILE_SHARE_WRITE , NULL,CREATE_ALWAYS, FILE_ATTRIBUTE_ARCHIVE, NULL
 	mov filehandler,eax
+
 	;file header
+	mov eax,TYPE FileHeaderproto
 	invoke WriteStruct,filehandler,ADDR FileHeader,TYPE FileHeaderproto,TYPE FileHeaderproto,1
 	;section header
 	invoke WriteStruct,filehandler,ADDR SectionHeader,TYPE SectionHeaderproto,TYPE SectionHeaderproto,SectionCount
+
 	;.text
 	invoke WriteStruct,filehandler,ADDR text_rawdata,1,1,SectionHeader[0].s_size
 	;if .text is odd
@@ -655,30 +695,118 @@ COFFsave PROC USES eax ebx ecx edx esi edi
 	jz evendrecjmp
 	invoke WriteBlank,filehandler
 	evendrecjmp:
+
 	;write file symbol
 	invoke WriteStruct,filehandler,ADDR FileSymbolTable,TYPE SymbolEntryproto,18,1
 	invoke WriteStruct,filehandler,ADDR SymbolauxTable,TYPE SymbolEntryproto,18,SymbolauxEntryCount
+
 	;write compid
-	invoke WriteStruct,filehandler,ADDR COMPIDSymbolTable,18,1,1
+	invoke WriteStruct,filehandler,ADDR COMPIDSymbolTable,1,1,18
+
 	;write section and aux
+	mov ecx,SectionCount
+	sectionandauxloop:
+	push ecx
+	neg ecx
+	add ecx,SectionCount
+	mov eax,TYPE SymbolEntryproto
+	mul ecx
+	add eax,OFFSET SectionSymbolTable
+	invoke WriteStruct,filehandler,eax,TYPE SymbolEntryproto,18,1
+	mov eax,TYPE SectionAuxSymbolTableproto
+	mul ecx
+	add eax,OFFSET SectionAuxSymbolTable
+	invoke WriteStruct,filehandler,eax,TYPE SectionAuxSymbolTableproto,18,1
+	pop ecx
+	dec ecx
+	jne sectionandauxloop
 
 	;write lib function
+	mov eax,CalledFunctionSymbolEntryCount
+	invoke WriteStruct,filehandler,ADDR CalledFunctionSymbolTable,TYPE SymbolEntryproto,18,CalledFunctionSymbolEntryCount
 
 	;write global v
+	invoke WriteStruct,filehandler,ADDR GlobalvSymbolTable,TYPE SymbolEntryproto,18,GlobalVCount
 
 	;write function
+	mov ecx,FunctionInfoCount
+	cmp ecx,0
+	je writefunctionnext
+	functionoutloop:
+	push ecx
+	neg ecx
+	add ecx,FunctionInfoCount
+	;func def
+	mov eax,TYPE SymbolEntryproto
+	mul ecx
+	mov edx,4
+	mul edx
+	add eax,OFFSET FunctionSymbolTable
+	invoke WriteStruct,filehandler,eax,TYPE SymbolEntryproto,18,1
+	push eax
+	;func def aux
+	mov eax,TYPE FunctionAuxSymbolTableproto
+	mul ecx
+	add eax,OFFSET FunctionAuxSymbolTable
+	invoke WriteStruct,filehandler,eax,TYPE FunctionAuxSymbolTableproto,18,1
+	;.bf def
+	pop eax
+	add eax,TYPE SymbolEntryproto
+	invoke WriteStruct,filehandler,eax,TYPE SymbolEntryproto,18,1
+	push eax
+	;.bf aux
+	mov eax,TYPE FunctionbfefAuxSymbolTableproto 
+	mul ecx
+	mov edx,2
+	mul edx
+	add eax,OFFSET FunctionbfefAuxSymbolTable
+	invoke WriteStruct,filehandler,eax,TYPE FunctionbfefAuxSymbolTableproto,18,1
+	mov edx,eax
+	pop eax
+	push edx
+	;.lf def
+	add eax,TYPE SymbolEntryproto
+	invoke WriteStruct,filehandler,eax,TYPE SymbolEntryproto,18,1
+	;.ef def
+	add eax,TYPE SymbolEntryproto
+	invoke WriteStruct,filehandler,eax,TYPE SymbolEntryproto,18,1
+	;.ef aux
+	pop eax
+	add eax,TYPE FunctionbfefAuxSymbolTableproto
+	invoke WriteStruct,filehandler,eax,TYPE FunctionbfefAuxSymbolTableproto,18,1
+	pop ecx
+	dec ecx
+	jne functionoutloop
 
+	writefunctionnext:
 	;write string table
+	mov ebx,DWORD PTR StringTable
+	invoke WriteStruct,filehandler,ADDR StringTable,1,1,ebx
 
+	;close file
 	invoke CloseHandle,filehandler
 	ret
 COFFsave ENDP
 
 WriteStruct PROC FAR C USES eax ebx ecx edx esi edi,fhandler:HANDLE,structbegin:DWORD,structsize:DWORD,savesize:DWORD,savenum:DWORD
+	mov ecx,savenum
+writestructloop:
+	push ecx
+	neg ecx
+	add ecx,savenum
+	mov eax,structsize
+	mul ecx
+	add eax,structbegin
 
+	invoke WriteFile,fhandler,eax,savesize,NULL,NULL
+	pop ecx
+	dec ecx
+	jne writestructloop
+	ret
 WriteStruct ENDP
 
-WriteBlank PROTO FAR C USES eax ebx ecx edx esi edi,fhandler:HANDLE
-
+WriteBlank PROC FAR C USES eax ebx ecx edx esi edi,fhandler:HANDLE
+	invoke WriteFile,fhandler,addr zeroBlank,1,NULL,NULL
+	ret
 WriteBlank ENDP
 END
