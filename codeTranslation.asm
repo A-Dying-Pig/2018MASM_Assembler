@@ -13,7 +13,7 @@ include msvcrt.inc
 includelib msvcrt.lib
 
 include global.inc
-
+include codeTranslation.inc
 
 ;instruction table structure
 ;|--------------------------------------------------------------------|
