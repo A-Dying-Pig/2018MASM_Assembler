@@ -76,7 +76,6 @@ EXTERNDEF FunctionSymbolTable:SymbolEntryproto
 EXTERNDEF OtherSymbolTable:SymbolEntryproto
 EXTERNDEF CalledFunctionSymbolTable:SymbolEntryproto
 
-
 ;symbol aux
 SymbolauxEntryproto STRUCT
     content BYTE 18 DUP(?)
@@ -89,51 +88,66 @@ EXTERNDEF SymbolauxTable:SymbolauxEntryproto
 EXTERNDEF StringEntryCount:DWORD
 EXTERNDEF StringTable:BYTE
 
+;per instruction
+Instructionproto STRUCT
+    operation_type DWORD ?
+    operation_len  DWORD ?  
+    operation_str  BYTE 8 DUP (0)
+    operand1_type  DWORD ?
+    operand1_name  BYTE 8 DUP (0)
+    operand1_len   DWORD ?
+    operand2_type  DWORD ?
+    operand2_name   BYTE 8 DUP (0)
+    operand2_len    DWORD ?
+Instructionproto ENDS
+EXTERNDEF Instruction:Instructionproto
+EXTERNDEF InstructionEnd:DWORD
+
 ;Function
 FunctionInfoproto STRUCT
-	f_name BYTE 8 DUP(?)
-	f_offset DWORD ?
-	f_size DWORD ?
-	f_lnof DWORD ?
-	f_bf WORD ?
-	f_lf DWORD ?
-	f_ef WORD ?
+    f_name BYTE 8 DUP(?)
+    f_offset DWORD ?
+    f_size DWORD ?
+    f_lnof DWORD ?
+    f_bf DWORD ?
+    f_lf DWORD ?
+    f_ef DWORD ?
 FunctionInfoproto ENDS
 EXTERNDEF FunctionInfoCount:DWORD
 EXTERNDEF FunctionInfoTable:FunctionInfoproto
 
 FunctionAuxSymbolTableproto STRUCT
-	tagIndex DWORD 0
-	totalSize DWORD 0
-	pointerToLinenumber DWORD 0
-	pointerToNextFunction DWORD 0
-	unused WORD 0
+    tagIndex DWORD 0
+    totalSize DWORD 0
+    pointerToLinenumber DWORD 0
+    pointerToNextFunction DWORD 0
+    unused WORD 0
 FunctionAuxSymbolTableproto ENDS
 MaxFunctionAuxSymbolTable EQU 20
 EXTERNDEF FunctionAuxSymbolTableCount:DWORD
 EXTERNDEF FunctionAuxSymbolTable:FunctionAuxSymbolTableproto
 
 FunctionbfefAuxSymbolTableproto STRUCT
-	unused1 DWORD 0
-	linenumber WORD 0
-	unused2 DWORD 0
-	unused3 WORD 0
-	pointerToNextFunction DWORD 0
-	unused4 WORD 0
+    unused1 DWORD 0
+    linenumber WORD 0
+    unused2 DWORD 0
+    unused3 WORD 0
+    pointerToNextFunction DWORD 0
+    unused4 WORD 0
 FunctionbfefAuxSymbolTableproto ENDS
 MaxFunctionbfefAuxSymbolTable EQU 40
 EXTERNDEF FunctionbfefAuxSymbolTableCount:DWORD
 EXTERNDEF FunctionbfefAuxSymbolTable:FunctionbfefAuxSymbolTableproto
 
 SectionAuxSymbolTableproto STRUCT
-	seclength DWORD 0
-	numberOfRelocations WORD 0
-	numberOfLinenumbers WORD 0
-	checkNum DWORD 0
-	number WORD 0
-	selection BYTE 0
-	unused WORD 0
-	unused1 BYTE 0
+    seclength DWORD 0
+    numberOfRelocations WORD 0
+    numberOfLinenumbers WORD 0
+    checkNum DWORD 0
+    number WORD 0
+    selection BYTE 0
+    unused WORD 0
+    unused1 BYTE 0
 SectionAuxSymbolTableproto ENDS
 SectionAuxSymbolTableMaxCount EQU 4
 EXTERNDEF SectionAuxSymbolTableCount:DWORD
@@ -141,6 +155,7 @@ EXTERNDEF SectionAuxSymbolTable:SectionAuxSymbolTableproto
 EXTERNDEF FilePath:BYTE
 EXTERNDEF COMPIDSymbolTable:BYTE
 
+<<<<<<< HEAD
 ;Teacher Na, Please don't delete the double quotation marks!!!!!
 DrectveRawDataEntryproto STRUCT
 	sizep DWORD 0
@@ -166,7 +181,6 @@ Instructionproto ENDS
 EXTERNDEF Instruction:Instructionproto
 EXTERNDEF InstructionEnd:DWORD
 
-
 ;label table
 LabelEntryproto STRUCT
     label_name BYTE 9 DUP(0)
@@ -178,4 +192,3 @@ EXTERNDEF LabelTable:LabelEntryproto
 ;current_byte
 EXTERNDEF current_code_bytes:DWORD
 EXTERNDEF line_bytes:DWORD
-EXTERNDEF DrectveRawDataTable:DrectveRawDataEntryproto

@@ -56,13 +56,11 @@ SectionAuxSymbolTable SectionAuxSymbolTableproto SectionAuxSymbolTableMaxCount D
 FilePath BYTE 255 DUP(0)
 COMPIDSymbolTable BYTE 40h,63h,6fh,6dh,70h,2eh,69h,64h,0fch,20h,12h,00h,0ffh,0ffh,00h,00h,03h,00h
 
-
 DrectveRawDataEntryCount DWORD 0
 DrectveRawDataTable DrectveRawDataEntryproto DrectveRawDataMaxEntryCount DUP(<>)
 
 current_code_bytes DWORD 0
 line_bytes DWORD 0
-
 
 LabelCount DWORD 0
 LabelTable LabelEntryproto 100 DUP(<>)
