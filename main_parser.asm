@@ -17,6 +17,7 @@ include shell32.inc
 includelib shell32.lib
 
 include global.inc
+include codeTranslation.inc
 
 .data
 ; ====================================== temp vars ==============================================
@@ -1542,9 +1543,14 @@ MainParser PROC USES eax ebx ecx edx esi edi
 	; code section
 	MainParser_Code:
 	INVOKE ParseTextStr
+	INVOKE code_translation
+
 	jmp MainParser_Parsering
 
 	MainParser_FileEnd:
+
+	INVOKE update_jump_bytes
+	INVOKE fill_text_section_header, current_code_bytes, RelocationCount
 	ret
 	MainParser_error:
 	INVOKE StdOut, OFFSET msg_grammar_err
