@@ -54,7 +54,7 @@ LineNumEntryproto STRUCT
     l_addr DWORD 0
     l_lnno WORD 0
 LineNumEntryproto ENDS
-EXTERNDEF LineNumCount:DWORD
+EXTERNDEF LineNumCount:WORD
 EXTERNDEF LineNumTable:LineNumEntryproto
 
 ;symbol table
@@ -109,9 +109,9 @@ FunctionInfoproto STRUCT
     f_offset DWORD ?
     f_size DWORD ?
     f_lnof DWORD ?
-    f_bf DWORD ?
+    f_bf WORD ?
     f_lf DWORD ?
-    f_ef DWORD ?
+    f_ef WORD ?
 FunctionInfoproto ENDS
 EXTERNDEF FunctionInfoCount:DWORD
 EXTERNDEF FunctionInfoTable:FunctionInfoproto

@@ -15,7 +15,7 @@ include msvcrt.inc
 includelib msvcrt.lib
 include shell32.inc
 includelib shell32.lib
-
+include coff.inc
 include global.inc
 include codeTranslation.inc
 
@@ -52,6 +52,9 @@ msg_grammar_err BYTE "syntax error with line number: lalal", 10, 0
 msg_begin_asm BYTE "Assembling: %s",10,0
 msg_parser_byte BYTE "Not implemented! 8 bit current not supported.",10,0
 msg_label_long BYTE "label too long....",10,0
+
+PointData BYTE ".data",0
+ExitProcName BYTE "ExitProcess",0
 
 ; ====================================== cmd relative ==========================================
 
@@ -797,6 +800,24 @@ ReadLine PROC USES ebx ecx edx esi
 	ret
 ReadLine ENDP
 
+; ========================================= Data About =============================================
+; -----------------------------------
+WriteDataSectionHeader PROC USES eax ebx ecx edx
+;
+; write the data section hear
+	mov eax, TYPE SectionHeader
+	mov ebx, dataOffset
+	
+	lea ecx, SectionHeader[eax].s_size
+	lea edx, SectionHeader[eax].s_name
+
+	mov DWORD PTR [ecx], ebx
+	INVOKE str_copy, ADDR PointData, edx
+
+	ret
+WriteDataSectionHeader ENDP
+
+
 ; ========================================= Parser PROC ============================================
 
 ; -----------------------------------------------------
@@ -1159,7 +1180,14 @@ AT_PROC PROC USES eax ebx,
 	add ebx, eax
 	mov BYTE PTR [ebx], '@'
 	inc ebx
+	INVOKE str_cmp, func_name, ADDR ExitProcName
+	je AT_PROC_exit_name
 	mov BYTE PTR [ebx], '0'
+	jmp AT_PROC_Con1
+	AT_PROC_exit_name:
+	mov BYTE PTR [ebx], '4'
+
+	AT_PROC_Con1:
 	inc ebx
 	mov BYTE PTR [ebx], 0
 	ret
@@ -1565,6 +1593,8 @@ MainParser PROC USES eax ebx ecx edx esi edi
 
 	INVOKE update_jump_bytes
 	INVOKE fill_text_section_header, current_code_bytes, RelocationCount
+	INVOKE WriteDataSectionHeader
+
 	ret
 	MainParser_error:
 	INVOKE StdOut, OFFSET msg_grammar_err
@@ -1577,7 +1607,8 @@ main PROC
 	INVOKE show_relocation_table
 	;INVOKE ReadLine
 	;INVOKE ParseDataDec
-	
+	invoke COFFStructFix
+	invoke COFFsave
 	
 	INVOKE ExitProcess, 0
 main ENDP

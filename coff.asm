@@ -18,8 +18,11 @@ include coff.inc
 	drectveentry BYTE "-entry:main@0 ",0
 	drectvename BYTE ".drectve",0
 	blankspace BYTE " ",0
+	stackname byte "STACK",0
 	coffname BYTE "a.obj",0
 	filehandler HANDLE ?
+	bytenum dword ?
+	testtemp byte 20 dup(0)
 .code
 ;;-------------------------------
 ;; transform the structure to coff
@@ -89,6 +92,10 @@ sectionsymbol:
 	cld
 	lea esi,SectionHeader[edx].s_name
 	lea edi,SectionSymbolTable[ecx].n_name
+	mov ecx,8
+	rep movsb
+	lea esi,SectionHeader[edx].s_name
+	lea edi,testtemp
 	mov ecx,8
 	rep movsb
 	pop ecx
@@ -625,11 +632,20 @@ drectvestrcpy:
 	add ebx,ecx
 	rep movsb
 	;header
+	push ecx
 	lea esi,drectvename
-	lea edi,SectionHeader[3*SectionHeaderproto].s_name
+	lea edi,SectionHeader[3*(type SectionHeaderproto)].s_name
+	mov ecx,8
 	cld
-	movsb
+	rep movsb
+
+	pop ecx
 	mov SectionHeader[3*SectionHeaderproto].s_size,ebx
+	lea esi,stackname
+	lea edi,SectionHeader[2*(type SectionHeaderproto)].s_name
+	cld
+	mov ecx,5
+	rep movsb
 	ret
 DrectveFini ENDP
 
@@ -655,7 +671,7 @@ COFFStructFix PROC USES eax ebx ecx edx esi edi
 	call FunctionSymbolTableFini
 
 	call FileHeaderFini
-
+	invoke StdOut,addr SectionHeader[3*SectionHeaderproto].s_name
 	ret
 COFFStructFix ENDP
 
@@ -685,6 +701,10 @@ COFFsave PROC USES eax ebx ecx edx esi edi
 	;relo and linenum
 	invoke WriteStruct,filehandler,ADDR RelocationTable,TYPE RelocationEntryproto,TYPE RelocationEntryproto,RelocationCount
 	;.data
+	push eax
+	mov eax,SectionHeader[SectionHeaderproto].s_size
+	pop eax
+
 	invoke WriteStruct,filehandler,ADDR data_rawdata,1,1,SectionHeader[SectionHeaderproto].s_size
 	;.drectve
 	invoke WriteStruct,filehandler,ADDR drectve_rawdata,1,1,SectionHeader[3*SectionHeaderproto].s_size
@@ -797,8 +817,10 @@ writestructloop:
 	mov eax,structsize
 	mul ecx
 	add eax,structbegin
-
-	invoke WriteFile,fhandler,eax,savesize,NULL,NULL
+	push eax
+	mov eax,fhandler
+	pop eax
+	invoke WriteFile,fhandler,eax,savesize,addr bytenum,NULL
 	pop ecx
 	dec ecx
 	jne writestructloop
@@ -806,7 +828,7 @@ writestructloop:
 WriteStruct ENDP
 
 WriteBlank PROC FAR C USES eax ebx ecx edx esi edi,fhandler:HANDLE
-	invoke WriteFile,fhandler,addr zeroBlank,1,NULL,NULL
+	invoke WriteFile,fhandler,addr zeroBlank,1,addr bytenum,NULL
 	ret
 WriteBlank ENDP
 END
