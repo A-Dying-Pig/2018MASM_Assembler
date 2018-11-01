@@ -18,30 +18,8 @@ includelib shell32.lib
 
 include global.inc
 
-; ======================================= Parser Using Structure ==============================
-; Instructionproto STRUCT
-;     operation_type DWORD ?
-;     operation_len  DWORD ?	
-;     operation_str  BYTE 8 DUP (?)
-;     operand1_type  DWORD ?
-;     operand1_name  BYTE 8 DUP (?)
-; 	operand1_len   DWORD ?
-;     operand2_type  DWORD ?
-;     operand2_name   BYTE 8 DUP (?)
-; 	operand2_len	DWORD ?
-; Instructionproto ENDS
-
-; Labelproto STRUCT
-; 	strp BYTE 9 DUP (0)
-; 	off DWORD ?
-; Labelproto ENDS
-
-
 .data
 ; ====================================== temp vars ==============================================
-
-;InstructionTable Instructionproto 100 DUP (<>)
-;LabelTable Labelproto 100 DUP (<>)
 
 my_name1 BYTE "dsa",0
 my_name2 BYTE "lo",0
@@ -663,18 +641,36 @@ pushFuncLabel PROC USES eax ebx ecx edx,
 	ret
 pushFuncLabel ENDP
 
+; ------------------------------------------------
+pushDrectveTable PROC USES eax ecx ecx edx,
+	lib_name: PTR BYTE
+; -----------------------------------------------
+	mov eax, DrectveRawDataEntryCount
+	mov ebx, TYPE DrectveRawDataTable
+	mul ebx
+	lea edx, DrectveRawDataTable[eax].sizep
+
+	INVOKE str_len, lib_name
+	mov DWORD PTR [edx], eax
+	add edx, 4
+
+	INVOKE str_copy, lib_name, edx
+	inc DrectveRawDataEntryCount
+	ret
+pushDrectveTable ENDP
+
 ; see if the proc is my own
-isMyProcedure PROC USES eax ebx ecx edx,
-	strp: PTR BYTE
-	INVOKE str_len, strp
-	cmp eax, 8
-	jg MyProcedure_long
+;isMyProcedure PROC USES eax ebx ecx edx,
+	;strp: PTR BYTE
+	;INVOKE str_len, strp
+	;cmp eax, 8
+	;jg MyProcedure_long
 
 
 
-	MyProcedure_long:
+	;MyProcedure_long:
 
-isMyProcedure ENDP
+;isMyProcedure ENDP
 
 ; ========================================== find in tables =========================================
 
@@ -1329,6 +1325,24 @@ ParseCall PROC USES eax ebx ecx edx esi,
 ParseCall ENDP
 
 ;-------------------------------------------------------
+ParseIncludeLib PROC USES eax ebx ecx edx esi,
+	target: PTR BYTE
+; parser the includelib
+;-------------------------------------------------------
+	;mov edx, OFFSET FileLine
+	;INVOKE split_string, edx, 8, 1, 0
+	;mov ebx, splitList[0]
+	;mov edx, splitList[4]
+	cmp target, 0
+	je ParseIncludeLib_error
+	INVOKE pushDrectveTable, target
+	ret
+	ParseIncludeLib_error:
+	INVOKE StdOut, ADDR msg_grammar_err
+	INVOKE ExitProcess, 0
+ParseIncludeLib ENDP
+
+;-------------------------------------------------------
 ParseTextStr PROC USES eax ebx ecx edx esi
 ;
 ; the FileLine is a code line, parser this line
@@ -1476,6 +1490,7 @@ MainParser PROC USES eax ebx ecx edx esi edi
 	je MainParser_Parsering
 
 	;首先判断下方是不是code data段的声明
+	mov edx, OFFSET FileLine
 	INVOKE inEnumerate, edx, ADDR enumerateCode
 	cmp eax, 1
 	je MainParser_code
@@ -1504,11 +1519,11 @@ MainParser PROC USES eax ebx ecx edx esi edi
 	jmp MainParser_error
 
 	MainParser_include:
-	;-------------------------------Not implemented----------------------
+	;-------------------------------Not supported----------------------
 	jmp MainParser_Parsering
 
 	MainParser_includelib:
-	;-------------------------------Not implemented----------------------
+	INVOKE ParseIncludeLib, splitList[4]
 	jmp MainParser_Parsering
 
 	MainParser_code:

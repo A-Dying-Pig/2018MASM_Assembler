@@ -155,7 +155,6 @@ EXTERNDEF SectionAuxSymbolTable:SectionAuxSymbolTableproto
 EXTERNDEF FilePath:BYTE
 EXTERNDEF COMPIDSymbolTable:BYTE
 
-<<<<<<< HEAD
 ;Teacher Na, Please don't delete the double quotation marks!!!!!
 DrectveRawDataEntryproto STRUCT
 	sizep DWORD 0
@@ -164,7 +163,6 @@ DrectveRawDataEntryproto ENDS
 DrectveRawDataMaxEntryCount EQU 20
 EXTERNDEF DrectveRawDataEntryCount:DWORD
 EXTERNDEF DrectveRawDataTable:DrectveRawDataEntryproto
-
 
 ;per instruction
 Instructionproto STRUCT
