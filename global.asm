@@ -60,4 +60,13 @@ COMPIDSymbolTable BYTE 40h,63h,6fh,6dh,70h,2eh,69h,64h,0fch,20h,12h,00h,0ffh,0ff
 
 DrectveRawDataEntryCount DWORD 0
 DrectveRawDataTable DrectveRawDataEntryproto DrectveRawDataMaxEntryCount DUP(<>)
-END
+
+current_code_bytes DWORD 0
+line_bytes DWORD 0
+
+
+LabelCount DWORD 0
+LabelTable LabelEntryproto 100 DUP(<>)
+
+Instruction Instructionproto <>
+InstructionEnd DWORD 1123
