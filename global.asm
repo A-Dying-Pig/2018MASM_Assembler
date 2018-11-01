@@ -19,7 +19,7 @@ STACK_rawdata BYTE 100 DUP(?)
 RelocationCount DWORD 0
 RelocationTable RelocationEntryproto 100 DUP(<>)
 
-LineNumCount DWORD 0
+LineNumCount WORD 0
 LineNumTable LineNumEntryproto 200 DUP(<>)
 
 
