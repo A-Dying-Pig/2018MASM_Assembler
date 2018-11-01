@@ -694,6 +694,7 @@ findStringTable PROC USES ebx edx,
 	add edx, eax
 	cmp edx, ebx
 	je findStr_NO
+	inc edx
 	jmp findStr_Loop
 
 	findStr_END:
