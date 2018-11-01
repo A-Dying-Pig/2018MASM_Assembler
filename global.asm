@@ -7,7 +7,6 @@ include global.inc
 FileHeader FileHeaderproto <>
 allFileOffset DWORD 0
 
-
 SectionHeader SectionHeaderproto SectionCount DUP(<>)
 
 ;section raw-data,fixed size
@@ -70,3 +69,4 @@ LabelTable LabelEntryproto 100 DUP(<>)
 
 Instruction Instructionproto <>
 InstructionEnd DWORD 1123
+END

@@ -17,7 +17,6 @@ FileHeaderproto STRUCT
     f_nsyms DWORD 0
     f_opthdr WORD 0
     f_flags WORD 0
-
 FileHeaderproto ENDS
 EXTERNDEF FileHeader:FileHeaderproto
 
@@ -88,7 +87,6 @@ EXTERNDEF SymbolauxTable:SymbolauxEntryproto
 
 ;string table
 EXTERNDEF StringEntryCount:DWORD
-
 EXTERNDEF StringTable:BYTE
 
 ;Function
@@ -180,4 +178,4 @@ EXTERNDEF LabelTable:LabelEntryproto
 ;current_byte
 EXTERNDEF current_code_bytes:DWORD
 EXTERNDEF line_bytes:DWORD
-
+EXTERNDEF DrectveRawDataTable:DrectveRawDataEntryproto
