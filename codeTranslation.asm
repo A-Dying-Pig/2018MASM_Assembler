@@ -138,12 +138,12 @@ a_relocation_entry byte "%x %x %hd",0dh,0ah,0
 .code
 
 ;----------------------------------------------
-load_tables PROC
+load_tables PROC USES eax ebx ecx edx esi edi
 ;functions:load tables into memory
 ;receive:None
 ;return:None
 ;----------------------------------------------
-	pushad
+;pushad
 	INVOKE StdOut,ADDR fun_load_tables
 
 	;LOADING INSTRUCTION TABLE
@@ -176,6 +176,7 @@ load_tables PROC
 L_instruction:	
 	mov BYTE PTR [esi+1],0
 	;INVOKE StdOut,ADDR buffer
+	;INVOKE StdOut,esi
 	INVOKE atodw, esi
 	mov ecx,eax
 	;INVOKE crt_printf,ADDR integer,eax
@@ -192,7 +193,7 @@ L_instruction_str:
 	add esi,1
 	add edi,1
 	loop L_instruction_str
-	add esi,1
+	add esi,2
 	add edi,4
 	cmp BYTE PTR [esi],0
 	jne L_instruction
@@ -202,8 +203,6 @@ L_instruction_str:
 	
 	;CLOSE INSTRUCTION TABLE
 	invoke CloseHandle,open_table_file_handler
-
-
 	;LOADING OPCODE TABLE
 	INVOKE CreateFile,
 		ADDR opcode_table_name,
@@ -224,7 +223,6 @@ L_instruction_str:
 		0
 	cmp eax,0
 	je L1
-	
 	;READING OPCODE TABLE SUCCESSFULLY
 	push offset instruction_table
 	mov edi,offset opcode_table
@@ -232,7 +230,8 @@ L_instruction_str:
 	mov ecx,bytes_read
 	mov byte ptr [esi + ecx],0
 	;INVOKE StdOut,esi
-
+	;popad
+	;ret
 L_opcode_table_entry:
 	;SITUATION
 	mov byte ptr [esi + 1],0
@@ -277,7 +276,7 @@ L_set_table_pointer_finished:
 	mov ecx,esi
 L_opcode:
 	inc ecx
-	cmp byte ptr [ecx],10
+	cmp byte ptr [ecx],13
 	jne L_opcode
 	mov byte ptr [ecx],0
 	push ecx
@@ -285,15 +284,14 @@ L_opcode:
 	mov word ptr[edi],ax
 	add edi,2
 	pop esi
-	inc esi
+	add esi,2
 
 	mov al,byte ptr [esi]
 	cmp byte ptr [esi],0
 	jne L_opcode_table_entry
-
 ;CLOSE OPCODE TABLE FILE
+	pop edx
 	invoke CloseHandle,open_table_file_handler
-
 ;LOADING REGISTER TABLE	
 	mov esi,offset eax_str
 	mov ebx,0
@@ -313,7 +311,7 @@ L_register:
 L1:
 	INVOKE StdOut, ADDR error
 L2:
-	popad
+	
 	ret
 L_set_pointer:
 	;SET INSTRUCTION TABLE POINTER 
@@ -378,7 +376,7 @@ get_opcode PROC,
 	invoke StdOut,addr fun_get_opcode
 	mov edi,offset instruction_table
 	;invoke crt_printf,addr char,byte ptr [edi+4]
-
+	;invoke StdOut,addr instruction_table
 	;invoke StdOut,op_str_ptr
 L_cmp_entry:
 	mov edx,dword ptr [edi]
@@ -396,7 +394,7 @@ L_cmp_str:
 	cmp al,bl
 	loope L_cmp_str
 
-	jnz L_not_pair
+	jne L_not_pair
 	;PAIR
 	mov edi,dword ptr [edi]		;operation_table_ptr
 	mov eax,op_type
@@ -1622,6 +1620,8 @@ code_translation PROC
 ;-------------------------------------------------
 	pushad
 	invoke StdOut,addr fun_code_translation
+	;invoke StdOut,addr Instruction.operation_str
+
 	cmp Instruction.operation_type,0
 	je L0
 	cmp Instruction.operation_type,1
