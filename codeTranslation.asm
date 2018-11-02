@@ -589,7 +589,7 @@ L_f_cmp_str:
 	loope L_f_cmp_str
 	je L_f_pair
 	add edi,ecx
-	add edi,20
+	add edi,18
 	pop ecx
 	loop L_f
 	;NOT PAIRED AT ALL
@@ -1282,6 +1282,8 @@ rel32  PROC
 ;-------------------------------------------------
 	pushad
 	invoke StdOut,addr fun_rel32
+	invoke StdOut,addr Instruction.operation_str
+	invoke StdOut,addr Instruction.operand1_name
 	invoke get_opcode,Instruction.operation_len,addr Instruction.operation_str,Instruction.operation_type
 	push eax
 
@@ -1320,6 +1322,7 @@ L_jump:
 	je L_is_loop
 	;fill jump table -- jmp/call
 	mov esi,offset Instruction.operand1_name
+
 	mov ecx,Instruction.operand1_len
 	mov eax, current_code_bytes
 	add eax,line_bytes
@@ -1500,8 +1503,6 @@ function_definition_start PROC
 	je L1
 	mov function_start_on,1
 	invoke StdOut,addr fun_definition_start
-	;invoke StdOut,addr Instruction.operation_str
-	;invoke StdOut,addr Instruction.operand1_name
 	invoke search_function_table,addr Instruction.operand1_name
 	mov edx,current_code_bytes
 	mov dword ptr [eax + 8],edx

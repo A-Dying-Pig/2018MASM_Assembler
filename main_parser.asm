@@ -15,7 +15,7 @@ include msvcrt.inc
 includelib msvcrt.lib
 include shell32.inc
 includelib shell32.lib
-
+include coff.inc
 include global.inc
 include codeTranslation.inc
 
@@ -52,6 +52,9 @@ msg_grammar_err BYTE "syntax error with line number: lalal", 10, 0
 msg_begin_asm BYTE "Assembling: %s",10,0
 msg_parser_byte BYTE "Not implemented! 8 bit current not supported.",10,0
 msg_label_long BYTE "label too long....",10,0
+
+PointData BYTE ".data",0
+ExitProcName BYTE "ExitProcess",0
 
 ; ====================================== cmd relative ==========================================
 
@@ -797,6 +800,24 @@ ReadLine PROC USES ebx ecx edx esi
 	ret
 ReadLine ENDP
 
+; ========================================= Data About =============================================
+; -----------------------------------
+WriteDataSectionHeader PROC USES eax ebx ecx edx
+;
+; write the data section hear
+	mov eax, TYPE SectionHeader
+	mov ebx, dataOffset
+	
+	lea ecx, SectionHeader[eax].s_size
+	lea edx, SectionHeader[eax].s_name
+
+	mov DWORD PTR [ecx], ebx
+	INVOKE str_copy, ADDR PointData, edx
+
+	ret
+WriteDataSectionHeader ENDP
+
+
 ; ========================================= Parser PROC ============================================
 
 ; -----------------------------------------------------
@@ -931,13 +952,13 @@ AddOper1 PROC USES eax ebx ecx edx esi,
 	jmp AddOper1_Mem
 
 	AddOper1_Imm:
-		mov Instruction.operand1_type, 0
+		mov Instruction.operand1_type, 2
 		INVOKE atodw, edx
 		mov DWORD PTR Instruction.operand1_name, eax
 		ret
 
 	AddOper1_Reg:
-		mov Instruction.operand1_type, 1
+		mov Instruction.operand1_type, 0
 		INVOKE str_len, edx
 		mov Instruction.operand1_len, eax
 		INVOKE str_copy, edx, OFFSET Instruction.operand1_name
@@ -945,7 +966,7 @@ AddOper1 PROC USES eax ebx ecx edx esi,
 		ret
 	
 	AddOper1_Mem:
-		mov Instruction.operand1_type, 2
+		mov Instruction.operand1_type, 1
 		INVOKE str_len, edx
 		cmp eax, 8
 		jl AddOper1_Con2
@@ -983,13 +1004,13 @@ AddOper2 PROC USES eax ebx ecx edx esi,
 	jmp AddOper2_Mem
 
 	AddOper2_Imm:
-		mov Instruction.operand2_type, 0
+		mov Instruction.operand2_type, 2
 		INVOKE atodw, edx
 		mov DWORD PTR Instruction.operand2_name, eax
 		ret
 
 	AddOper2_Reg:
-		mov Instruction.operand2_type, 1
+		mov Instruction.operand2_type, 0
 		INVOKE str_len, edx
 		mov Instruction.operand2_len, eax
 		INVOKE str_copy, edx, OFFSET Instruction.operand2_name
@@ -997,7 +1018,7 @@ AddOper2 PROC USES eax ebx ecx edx esi,
 		ret
 	
 	AddOper2_Mem:
-		mov Instruction.operand2_type, 2
+		mov Instruction.operand2_type, 1
 		INVOKE str_len, edx
 		cmp eax, 8
 		jl AddOper2_Con2
@@ -1038,9 +1059,9 @@ ParseOneOpIns PROC USES eax ebx ecx edx esi,
 	mov edx, eax
 
 	INVOKE AddOper1, edx
-	cmp Instruction.operand1_type, 1
+	cmp Instruction.operand1_type, 0
 	je ParseOneOpIns_reg
-	cmp Instruction.operand1_type, 2
+	cmp Instruction.operand1_type, 1
 	je ParseOneOpIns_mem
 
 	jmp ParseOneOpIns_error
@@ -1076,19 +1097,19 @@ ParseTwoOpIns PROC USES eax ebx ecx edx esi,
 
 	INVOKE AddOper1, ebx
 	INVOKE AddOper2, edx
-	cmp Instruction.operand1_type, 1
+	cmp Instruction.operand1_type, 0
 	je ParseTwoOpIns_reg
-	cmp Instruction.operand1_type, 2
+	cmp Instruction.operand1_type, 1
 	je ParseTwoOpIns_mem
 
 	jmp ParseTwoOpIns_error
 
 	ParseTwoOpIns_reg:
-	cmp Instruction.operand2_type, 0
-	je ParseTwoOpIns_reg_imm
-	cmp Instruction.operand2_type, 1
-	je ParseTwoOpIns_reg_reg
 	cmp Instruction.operand2_type, 2
+	je ParseTwoOpIns_reg_imm
+	cmp Instruction.operand2_type, 0
+	je ParseTwoOpIns_reg_reg
+	cmp Instruction.operand2_type, 1
 	je ParseTwoOpIns_reg_mem
 	jmp ParseTwoOpIns_error
 
@@ -1103,9 +1124,9 @@ ParseTwoOpIns PROC USES eax ebx ecx edx esi,
 		ret
 
 	ParseTwoOpIns_mem:
-	cmp Instruction.operand2_type, 0
+	cmp Instruction.operand2_type, 2
 	je ParseTwoOpIns_mem_imm
-	cmp Instruction.operand2_type, 1
+	cmp Instruction.operand2_type, 0
 	je ParseTwoOpIns_mem_reg
 	jmp ParseTwoOpIns_error
 
@@ -1159,7 +1180,14 @@ AT_PROC PROC USES eax ebx,
 	add ebx, eax
 	mov BYTE PTR [ebx], '@'
 	inc ebx
+	INVOKE str_cmp, func_name, ADDR ExitProcName
+	je AT_PROC_exit_name
 	mov BYTE PTR [ebx], '0'
+	jmp AT_PROC_Con1
+	AT_PROC_exit_name:
+	mov BYTE PTR [ebx], '4'
+
+	AT_PROC_Con1:
 	inc ebx
 	mov BYTE PTR [ebx], 0
 	ret
@@ -1213,14 +1241,24 @@ ParseBeginProc PROC USES eax ebx ecx edx esi,
 ParseBeginProc ENDP
 
 
-ParseEndProc PROC USES eax ebx ecx edx esi,
+ParseEndProc PROC USES eax ebx ecx edx esi edi,
 	func_name: PTR BYTE
 	mov Instruction.operation_type, 9
-	INVOKE AT_PROC, func_name
-	INVOKE str_len, ADDR processed_proc
 	mov eax, TYPE FunctionInfoTable
 	mov ebx, FunctionInfoCount
-	mul ebx ;eax 存储FunctionInfoCount的开始
+	dec ebx
+	mul ebx
+	lea esi, FunctionInfoTable[eax].f_name
+	lea edi, Instruction.operand1_name
+	mov ecx, 8
+	cld
+	rep movsb
+
+	;INVOKE AT_PROC, func_name
+	;INVOKE str_len, ADDR processed_proc
+	;mov eax, TYPE FunctionInfoTable
+	;mov ebx, FunctionInfoCount
+	;mul ebx ;eax 存储FunctionInfoCount的开始
 
 	mov ebx,0
 	mov bx, LineNumCount
@@ -1228,6 +1266,7 @@ ParseEndProc PROC USES eax ebx ecx edx esi,
 	mov cx, FunctionInfoTable[eax].f_bf
 	sub bx, cx
 	mov FunctionInfoTable[eax].f_lf, ebx
+	ret
 
 ParseEndProc ENDP
 
@@ -1279,13 +1318,13 @@ ParseCall PROC USES eax ebx ecx edx esi,
 
 		ParseCall_found_called: ;长度小于8的库函数，并且在called中找到，直接返回即可
 		mov Instruction.operand1_len, edx
-		INVOKE str_copy, ADDR Instruction.operand1_name, ADDR processed_proc
+		INVOKE str_copy, ADDR processed_proc, ADDR Instruction.operand1_name
 		ret
 
 		ParseCall_notfound_called: ;长度小于8的库函数，并且在called中没有找到，需要添加
 		mov Instruction.operand1_len, edx
-		INVOKE str_copy, ADDR Instruction.operand1_name, ADDR processed_proc
-		INVOKE str_copy, ADDR CalledFunctionSymbolTable[ebx].n_name, ADDR processed_proc
+		INVOKE str_copy, ADDR processed_proc, ADDR Instruction.operand1_name
+		INVOKE str_copy, ADDR processed_proc, ADDR CalledFunctionSymbolTable[ebx].n_name
 		inc CalledFunctionSymbolEntryCount ;成功 +1
 		ret
 
@@ -1311,7 +1350,7 @@ ParseCall PROC USES eax ebx ecx edx esi,
 	mov	eax, TYPE CalledFunctionSymbolTable
 	mul ebx ;计算新插入的位置
 
-	lea esi, OFFSET Instruction.operand1_name ;把要放指令的位置放在esi中
+	mov esi, OFFSET Instruction.operand1_name ;把要放指令的位置放在esi中
 	lea edx, CalledFunctionSymbolTable[eax].n_name;新插入的位置交给edx
 
 	mov DWORD PTR [edx], 0
@@ -1319,7 +1358,7 @@ ParseCall PROC USES eax ebx ecx edx esi,
 	add edx, 4
 	add esi, 4
 	mov DWORD PTR [edx], ecx ;插入进去
-	mov DWORD PTR [esi], 0
+	mov DWORD PTR [esi], ecx
 	inc CalledFunctionSymbolEntryCount ;成功 +1
 	ret
 
@@ -1554,6 +1593,8 @@ MainParser PROC USES eax ebx ecx edx esi edi
 
 	INVOKE update_jump_bytes
 	INVOKE fill_text_section_header, current_code_bytes, RelocationCount
+	INVOKE WriteDataSectionHeader
+
 	ret
 	MainParser_error:
 	INVOKE StdOut, OFFSET msg_grammar_err
@@ -1563,11 +1604,12 @@ MainParser ENDP
 main PROC
 	INVOKE load_tables
 	INVOKE MainParser
+	INVOKE show_relocation_table
 	;INVOKE ReadLine
 	;INVOKE ParseDataDec
-	
+	invoke COFFStructFix
+	invoke COFFsave
 	
 	INVOKE ExitProcess, 0
 main ENDP
-
 END main
