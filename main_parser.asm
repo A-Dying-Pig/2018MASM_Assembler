@@ -1175,15 +1175,16 @@ ParseBeginProc PROC USES eax ebx ecx edx esi,
 
 	ParseBeginProc_direct:
 	mov Instruction.operand1_len, eax
-	INVOKE str_copy, ADDR Instruction.operand1_name, ADDR processed_proc
+	INVOKE str_copy, ADDR processed_proc, ADDR Instruction.operand1_name
 	INVOKE pushLabel, ADDR processed_proc
 	mov eax, TYPE FunctionInfoTable
 	mov ebx, FunctionInfoCount
 	mul ebx
 	mov ecx, eax
 	INVOKE str_copy, ADDR processed_proc, ADDR FunctionInfoTable[ecx].f_name
-	mov ebx, LineNumCount
-	mov FunctionInfoTable[ecx].f_bf, ebx
+	mov bx, LineNumCount
+	mov FunctionInfoTable[ecx].f_bf, bx
+	inc FunctionInfoCount
 	ret
 
 	ParseBeginProc_toolong:
@@ -1204,8 +1205,9 @@ ParseBeginProc PROC USES eax ebx ecx edx esi,
 	mov [ebx], eax
 	mov [edx], eax
 	INVOKE pushFuncLabel, eax
-	mov ecx, LineNumCount
-	mov FunctionInfoTable[ecx].f_bf, ecx
+	mov cx, LineNumCount
+	mov FunctionInfoTable[ecx].f_bf, cx
+	inc FunctionInfoCount
 	ret
 
 ParseBeginProc ENDP
@@ -1220,10 +1222,11 @@ ParseEndProc PROC USES eax ebx ecx edx esi,
 	mov ebx, FunctionInfoCount
 	mul ebx ;eax 存储FunctionInfoCount的开始
 
-	mov ebx, LineNumCount
-	mov FunctionInfoTable[eax].f_ef, ebx
-	mov ecx, FunctionInfoTable[eax].f_bf
-	sub ebx, ecx
+	mov ebx,0
+	mov bx, LineNumCount
+	mov FunctionInfoTable[eax].f_ef, bx
+	mov cx, FunctionInfoTable[eax].f_bf
+	sub bx, cx
 	mov FunctionInfoTable[eax].f_lf, ebx
 
 ParseEndProc ENDP
@@ -1558,6 +1561,7 @@ MainParser PROC USES eax ebx ecx edx esi edi
 MainParser ENDP
 
 main PROC
+	INVOKE load_tables
 	INVOKE MainParser
 	;INVOKE ReadLine
 	;INVOKE ParseDataDec

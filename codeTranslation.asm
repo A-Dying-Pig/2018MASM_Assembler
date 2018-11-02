@@ -203,6 +203,7 @@ L_instruction_str:
 	;CLOSE INSTRUCTION TABLE
 	invoke CloseHandle,open_table_file_handler
 
+
 	;LOADING OPCODE TABLE
 	INVOKE CreateFile,
 		ADDR opcode_table_name,
@@ -1499,7 +1500,9 @@ function_definition_start PROC
 	je L1
 	mov function_start_on,1
 	invoke StdOut,addr fun_definition_start
-	invoke search_function_table,addr Instruction.operation_str
+	;invoke StdOut,addr Instruction.operation_str
+	;invoke StdOut,addr Instruction.operand1_name
+	invoke search_function_table,addr Instruction.operand1_name
 	mov edx,current_code_bytes
 	mov dword ptr [eax + 8],edx
 	mov function_start_offset,edx
@@ -1523,7 +1526,7 @@ function_definition_end PROC
 	mov function_start_on,0
 	mov line_bytes,0
 	invoke StdOut,addr fun_definition_end
-	invoke search_function_table,addr Instruction.operation_str
+	invoke search_function_table,addr Instruction.operand1_name
 	mov edx,current_code_bytes
 	mov ebx,function_start_offset
 	sub edx,ebx
